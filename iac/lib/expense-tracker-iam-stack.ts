@@ -9,7 +9,6 @@ interface IamStackProps extends StackProps {
 }
 
 export class ExpenseTrackerIamStack extends Stack {
-  public readonly jenkinsInstanceRole: iam.Role;
 
   constructor(scope: Construct, id: string, props: IamStackProps) {
     super(scope, id, props);
@@ -17,7 +16,7 @@ export class ExpenseTrackerIamStack extends Stack {
     const { appName, envName } = props;
 
     const exportParam = (name: string, value: string) => {
-      new ssm.StringParameter(this, name, {
+      new ssm.StringParameter(this, `SSMParam-${name}`, {
         parameterName: `/${appName}/${envName}/iam/${name}`,
         stringValue: value
       });
@@ -62,13 +61,15 @@ export class ExpenseTrackerIamStack extends Stack {
             `arn:aws:lambda:${this.region}:${this.account}:layer:${appName}-${envName}-*:*`
           ]
         }),
-        // API Gateway - scoped to account/region (no resource-level scoping available for RestApi ARNs at creation time)
+        // API Gateway - scoped to account/region
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
           actions: ['apigateway:*'],
           resources: [
             `arn:aws:apigateway:${this.region}::/restapis`,
             `arn:aws:apigateway:${this.region}::/restapis/*`,
+            `arn:aws:apigateway:${this.region}::/apis`,
+            `arn:aws:apigateway:${this.region}::/apis/*`,
             `arn:aws:apigateway:${this.region}::/domainnames`,
             `arn:aws:apigateway:${this.region}::/domainnames/*`
           ]
@@ -80,6 +81,7 @@ export class ExpenseTrackerIamStack extends Stack {
           resources: [
             `arn:aws:cloudfront::${this.account}:distribution/*`,
             `arn:aws:cloudfront::${this.account}:origin-access-identity/*`,
+            `arn:aws:cloudfront::${this.account}:origin-access-control/*`,
             `arn:aws:cloudfront::${this.account}:cache-policy/*`,
             `arn:aws:cloudfront::${this.account}:origin-request-policy/*`
           ]
@@ -185,13 +187,15 @@ export class ExpenseTrackerIamStack extends Stack {
       maxSessionDuration: Duration.hours(2) // CDK deploys can take time
     });
 
-    // Read SSM params for this env only
+    // Read + write SSM params for this env
+    // the API endpoint to SSM after sam deploy
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
         'ssm:GetParameter',
         'ssm:GetParameters',
-        'ssm:GetParametersByPath'
+        'ssm:GetParametersByPath',
+        'ssm:PutParameter'
       ],
       resources: [
         `arn:aws:ssm:${this.region}:${this.account}:parameter/${appName}/${envName}/*`
@@ -215,30 +219,28 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // ECR access if you're pushing Docker images for Lambda
-    // (remove if not using container-based Lambda)
+    // syncs Next.js build output to the frontend bucket
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
-        'ecr:GetAuthorizationToken',
-        'ecr:BatchCheckLayerAvailability',
-        'ecr:GetDownloadUrlForLayer',
-        'ecr:BatchGetImage',
-        'ecr:PutImage',
-        'ecr:InitiateLayerUpload',
-        'ecr:UploadLayerPart',
-        'ecr:CompleteLayerUpload'
+        's3:PutObject',
+        's3:DeleteObject',
+        's3:ListBucket',
+        's3:GetObject'
       ],
       resources: [
-        `arn:aws:ecr:${this.region}:${this.account}:repository/${appName}-${envName}-*`
+        `arn:aws:s3:::${appName}-${envName}-*`,
+        `arn:aws:s3:::${appName}-${envName}-*/*`
       ]
     }));
 
-    // ECR GetAuthorizationToken is account-level, needs * resource
+    // invalidates the distribution after S3 sync
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ['ecr:GetAuthorizationToken'],
-      resources: ['*']
+      actions: ['cloudfront:CreateInvalidation'],
+      resources: [
+        `arn:aws:cloudfront::${this.account}:distribution/*`
+      ]
     }));
 
     // Pass cfn-execution-role to CloudFormation only
@@ -278,10 +280,10 @@ export class ExpenseTrackerIamStack extends Stack {
         'cloudformation:ListChangeSets'
       ],
       resources: [
-        // Only stacks belonging to this app and env
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/${appName}-${envName}-*/*`,
-        // CDK toolkit stack (needed for bootstrapping checks)
-        `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`
+        `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`,
+        // FIX 7: Added us-east-1 — edge stack deploys there for CloudFront ACM
+        `arn:aws:cloudformation:us-east-1:${this.account}:stack/${appName}-${envName}-*/*`
       ]
     }));
 
@@ -334,7 +336,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // Also needs to read CDK assets from bootstrap bucket
+    // Read CDK assets from bootstrap bucket
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['s3:GetObject', 's3:GetObjectVersion'],
@@ -413,13 +415,15 @@ export class ExpenseTrackerIamStack extends Stack {
       resources: [
         `arn:aws:apigateway:${this.region}::/restapis`,
         `arn:aws:apigateway:${this.region}::/restapis/*`,
+        `arn:aws:apigateway:${this.region}::/apis`,
+        `arn:aws:apigateway:${this.region}::/apis/*`,
         `arn:aws:apigateway:${this.region}::/domainnames`,
         `arn:aws:apigateway:${this.region}::/domainnames/*`,
         `arn:aws:apigateway:${this.region}::/account`
       ]
     }));
 
-    // CloudFront - account scoped (no resource name prefixes possible)
+    // CloudFront - account scoped
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -432,13 +436,18 @@ export class ExpenseTrackerIamStack extends Stack {
         'cloudfront:CreateOriginAccessIdentity',
         'cloudfront:DeleteOriginAccessIdentity',
         'cloudfront:GetOriginAccessIdentity',
+        'cloudfront:CreateOriginAccessControl',
+        'cloudfront:DeleteOriginAccessControl',
+        'cloudfront:GetOriginAccessControl',
+        'cloudfront:UpdateOriginAccessControl',
         'cloudfront:TagResource',
         'cloudfront:UntagResource',
         'cloudfront:ListTagsForResource'
       ],
       resources: [
         `arn:aws:cloudfront::${this.account}:distribution/*`,
-        `arn:aws:cloudfront::${this.account}:origin-access-identity/*`
+        `arn:aws:cloudfront::${this.account}:origin-access-identity/*`,
+        `arn:aws:cloudfront::${this.account}:origin-access-control/*`
       ]
     }));
 
@@ -506,7 +515,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // IAM - only create/manage roles for this app/env (for Lambda execution roles etc.)
+    // IAM - only create/manage roles for this app/env
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -523,10 +532,17 @@ export class ExpenseTrackerIamStack extends Stack {
         'iam:UntagRole',
         'iam:ListRoleTags',
         'iam:ListAttachedRolePolicies',
-        'iam:ListRolePolicies'
+        'iam:ListRolePolicies',
+        'iam:CreateInstanceProfile',
+        'iam:DeleteInstanceProfile',
+        'iam:GetInstanceProfile',
+        'iam:AddRoleToInstanceProfile',
+        'iam:RemoveRoleFromInstanceProfile'
       ],
       resources: [
-        `arn:aws:iam::${this.account}:role/${appName}-${envName}-*`
+        `arn:aws:iam::${this.account}:role/${appName}-${envName}-*`,
+        `arn:aws:iam::${this.account}:role/${appName}-jenkins-ec2-role`,
+        `arn:aws:iam::${this.account}:instance-profile/${appName}-*`
       ]
     }));
 

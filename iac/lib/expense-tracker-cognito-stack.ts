@@ -1,16 +1,22 @@
-import * as cdk from 'aws-cdk-lib/core';
-import { Construct } from 'constructs';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+// import { Stack, StackProps } from 'aws-cdk-lib';
+// import { Construct } from 'constructs';
+// import * as ssm from 'aws-cdk-lib/aws-ssm';
 
-export class IacStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-    super(scope, id, props);
+// interface CognitoStackProps extends StackProps {
+//   appName: string;
+//   envName: string;
+// }
 
-    // The code that defines your stack goes here
+// export class ExpenseTrackerCognitoStack extends Stack {
+//   constructor(scope: Construct, id: string, props: CognitoStackProps) {
+//     super(scope, id, props);
+//     const { appName, envName } = props;
 
-    // example resource
-    // const queue = new sqs.Queue(this, 'IacQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
-  }
-}
+//     const exportParam = (name: string, value: string) => {
+//       new ssm.StringParameter(this, `SSMParam-${name}`, {
+//         parameterName: `/${appName}/${envName}/cognito/${name}`,
+//         stringValue: value
+//       });
+//     };
+//   }
+// }

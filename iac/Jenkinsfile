@@ -29,7 +29,6 @@ pipeline {
           env.DEPLOY_ROLE_ARN = "arn:aws:iam::${env.AWS_ACCOUNT_ID}:role/${env.APP_NAME}-${env.ENV_NAME}-jenkins-deploy-role"
           echo "Branch:      ${env.BRANCH_NAME}"
           echo "Environment: ${env.ENV_NAME}"
-          echo "Deploy role: ${env.DEPLOY_ROLE_ARN}"
         }
       }
     }
@@ -59,66 +58,62 @@ pipeline {
           env.AWS_SECRET_ACCESS_KEY = creds[1]
           env.AWS_SESSION_TOKEN     = creds[2]
 
-          // Verify assumed role identity
-          sh 'aws sts get-caller-identity'
         }
       }
     }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 3 — Install Dependencies
-    // // npm ci is used instead of npm install because:
-    // //   - ci installs exact versions from package-lock.json
-    // //   - faster in CI environments
-    // //   - fails if package-lock.json is out of sync with package.json
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Install Dependencies') {
-    //   steps {
-    //     dir('iac') {
-    //       sh 'npm ci'
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 3 — Install Dependencies
+    // npm ci is used instead of npm install because:
+    //   - ci installs exact versions from package-lock.json
+    //   - faster in CI environments
+    //   - fails if package-lock.json is out of sync with package.json
+    // ─────────────────────────────────────────────────────────────
+    stage('Install Dependencies') {
+      steps {
+        dir('iac') {
+          sh 'npm ci'
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 4 — CDK Synth
-    // // Compiles TypeScript and generates CloudFormation templates.
-    // // Catches type errors and invalid CDK constructs BEFORE deploying.
-    // // This is a validation step — nothing is deployed here.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('CDK Synth') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk synth --all \
-    //           --context appName=${env.APP_NAME} \
-    //           --context envName=${env.ENV_NAME} \
-    //           --quiet
-    //       """
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 4 — CDK Synth
+    // Compiles TypeScript and generates CloudFormation templates.
+    // Catches type errors and invalid CDK constructs BEFORE deploying.
+    // This is a validation step — nothing is deployed here.
+    // ─────────────────────────────────────────────────────────────
+    stage('CDK Synth') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk synth --all \
+              --context env=${env.ENV_NAME} \
+              --quiet
+          """
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 5 — CDK Diff
-    // // Shows exactly what will change in AWS before touching anything.
-    // // Review this in the Jenkins console output before approving.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('CDK Diff') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk diff --all \
-    //           --context appName=${env.APP_NAME} \
-    //           --context envName=${env.ENV_NAME} \
-    //         || true
-    //       """
-    //       // || true — cdk diff exits with code 1 when there are changes,
-    //       // which would fail the pipeline. We want to see the diff and
-    //       // continue to the approval gate.
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 5 — CDK Diff
+    // Shows exactly what will change in AWS before touching anything.
+    // Review this in the Jenkins console output before approving.
+    // ─────────────────────────────────────────────────────────────
+    stage('CDK Diff') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk diff --all \
+              --context env=${env.ENV_NAME} \
+            || true
+          """
+          // || true — cdk diff exits with code 1 when there are changes,
+          // which would fail the pipeline. We want to see the diff and
+          // continue to the approval gate.
+        }
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 6 — Approval Gate (dev AND prod)
@@ -137,101 +132,96 @@ pipeline {
       }
     }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 7 — Deploy IAM Stack
-    // // Always deployed first — every other stack depends on the
-    // // roles and permission boundaries defined here.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Deploy: IAM') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-iam \
-    //           --context appName=${env.APP_NAME} \
-    //           --context envName=${env.ENV_NAME} \
-    //           --require-approval never
-    //       """
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 7 — Deploy IAM Stack
+    // Always deployed first — every other stack depends on the
+    // roles and permission boundaries defined here.
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: IAM') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-iam \
+              --context env=${env.ENV_NAME} \
+              --require-approval never
+          """
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 8 — Deploy Database Stack
-    // // Creates DynamoDB table and writes table name + ARN to SSM.
-    // // SAM backend reads these SSM params at deploy time.
-    // // Must come after IAM so the cfn-execution-role exists.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Deploy: Database') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-database \
-    //           --context appName=${env.APP_NAME} \
-    //           --context envName=${env.ENV_NAME} \
-    //           --require-approval never
-    //       """
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 8 — Deploy Database Stack
+    // Creates DynamoDB table and writes table name + ARN to SSM.
+    // SAM backend reads these SSM params at deploy time.
+    // Must come after IAM so the cfn-execution-role exists.
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Database') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-database \
+              --context env=${env.ENV_NAME} \
+              --require-approval never
+          """
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 9 — Deploy Cognito Stack
-    // // Creates User Pool + App Client.
-    // // Writes user pool ID, client ID, and issuer URL to SSM.
-    // // SAM backend reads these to configure the JWT authorizer.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Deploy: Cognito') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
-    //           --context appName=${env.APP_NAME} \
-    //           --context envName=${env.ENV_NAME} \
-    //           --require-approval never
-    //       """
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 9 — Deploy Cognito Stack
+    // Creates User Pool + App Client.
+    // Writes user pool ID, client ID, and issuer URL to SSM.
+    // SAM backend reads these to configure the JWT authorizer.
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Cognito') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
+              --context env=${env.ENV_NAME} \
+              --require-approval never
+          """
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 10 — Deploy Frontend Stack (S3)
-    // // Creates the S3 bucket for the Next.js static export.
-    // // Writes bucket name to SSM.
-    // // Must come before Edge stack — CloudFront needs the bucket.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Deploy: Frontend S3') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-frontend \
-    //           --context appName=${env.APP_NAME} \
-    //           --context envName=${env.ENV_NAME} \
-    //           --require-approval never
-    //       """
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 10 — Deploy Frontend Stack (S3)
+    // Creates the S3 bucket for the Next.js static export.
+    // Writes bucket name to SSM.
+    // Must come before Edge stack — CloudFront needs the bucket.
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Frontend S3') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-frontend \
+              --context env=${env.ENV_NAME} \
+              --require-approval never
+          """
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 11 — Deploy Edge Stack (CloudFront + ACM)
-    // // Deployed to us-east-1 — required by CloudFront for ACM certs.
-    // // ACM certificate validation takes ~15 minutes — pipeline waits.
-    // // Writes CloudFront domain + distribution ID to SSM.
-    // // SAM reads CloudFront domain for CORS config.
-    // // Frontend pipeline reads distribution ID for cache invalidation.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Deploy: Edge (CloudFront + ACM)') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-edge \
-    //           --context appName=${env.APP_NAME} \
-    //           --context envName=${env.ENV_NAME} \
-    //           --require-approval never
-    //       """
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 11 — Deploy Edge Stack (CloudFront + ACM)
+    // Deployed to us-east-1 — required by CloudFront for ACM certs.
+    // ACM certificate validation takes ~15 minutes — pipeline waits.
+    // Writes CloudFront domain + distribution ID to SSM.
+    // SAM reads CloudFront domain for CORS config.
+    // Frontend pipeline reads distribution ID for cache invalidation.
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Edge (CloudFront + ACM)') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-edge \
+              --context env=${env.ENV_NAME} \
+              --require-approval never
+          """
+        }
+      }
+    }
 
   }
 

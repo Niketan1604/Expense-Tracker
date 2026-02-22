@@ -54,271 +54,270 @@ pipeline {
           env.AWS_SESSION_TOKEN     = creds[2]
 
           sh 'aws sts get-caller-identity'
-          echo "Assumed role: ${env.DEPLOY_ROLE_ARN}"
         }
       }
     }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 3 — Install Dependencies
-    // // npm ci installs exact versions from package-lock.json.
-    // // Ensures every pipeline run uses identical dependency versions.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Install Dependencies') {
-    //   steps {
-    //     dir('backend') {
-    //       sh 'npm ci'
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 3 — Install Dependencies
+    // npm ci installs exact versions from package-lock.json.
+    // Ensures every pipeline run uses identical dependency versions.
+    // ─────────────────────────────────────────────────────────────
+    stage('Install Dependencies') {
+      steps {
+        dir('backend') {
+          sh 'npm ci'
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 4 — TypeScript Type Check
-    // // Checks for type errors without emitting any output files.
-    // // Faster than a full build — catches errors early.
-    // // --noEmit means nothing is written to disk, just validation.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Type Check') {
-    //   steps {
-    //     dir('backend') {
-    //       sh 'npx tsc --noEmit'
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 4 — TypeScript Type Check
+    // Checks for type errors without emitting any output files.
+    // Faster than a full build — catches errors early.
+    // --noEmit means nothing is written to disk, just validation.
+    // ─────────────────────────────────────────────────────────────
+    stage('Type Check') {
+      steps {
+        dir('backend') {
+          sh 'npx tsc --noEmit'
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 5 — Lint
-    // // ESLint checks code quality and catches common mistakes:
-    // //   - unused variables
-    // //   - missing return types
-    // //   - unsafe any usage
-    // //   - other TypeScript best practices
-    // // Fails the pipeline if any error-level lint rules are violated.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Lint') {
-    //   steps {
-    //     dir('backend') {
-    //       sh 'npx eslint "src/**/*.ts" --max-warnings=0'
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 5 — Lint
+    // ESLint checks code quality and catches common mistakes:
+    //   - unused variables
+    //   - missing return types
+    //   - unsafe any usage
+    //   - other TypeScript best practices
+    // Fails the pipeline if any error-level lint rules are violated.
+    // ─────────────────────────────────────────────────────────────
+    stage('Lint') {
+      steps {
+        dir('backend') {
+          sh 'npx eslint "src/**/*.ts" --max-warnings=0'
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 6 — Unit Tests
-    // // Runs Jest test suite.
-    // // --passWithNoTests allows pipeline to pass while tests are
-    // // still being written. Remove this flag once tests exist.
-    // // --ci flag:
-    // //   - disables interactive watch mode
-    // //   - fails if snapshot tests are outdated
-    // //   - produces machine-readable output
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Unit Tests') {
-    //   steps {
-    //     dir('backend') {
-    //       sh 'npx jest --ci --passWithNoTests'
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 6 — Unit Tests
+    // Runs Jest test suite.
+    // --passWithNoTests allows pipeline to pass while tests are
+    // still being written. Remove this flag once tests exist.
+    // --ci flag:
+    //   - disables interactive watch mode
+    //   - fails if snapshot tests are outdated
+    //   - produces machine-readable output
+    // ─────────────────────────────────────────────────────────────
+    stage('Unit Tests') {
+      steps {
+        dir('backend') {
+          sh 'npx jest --ci --passWithNoTests'
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 7 — Security Audit
-    // // npm audit scans all dependencies against the npm advisory
-    // // database for known CVEs (security vulnerabilities).
-    // // --audit-level=high means the pipeline only fails on HIGH
-    // // or CRITICAL severity vulnerabilities, not low/moderate.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Security Audit') {
-    //   steps {
-    //     dir('backend') {
-    //       sh 'npm audit --audit-level=high'
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 7 — Security Audit
+    // npm audit scans all dependencies against the npm advisory
+    // database for known CVEs (security vulnerabilities).
+    // --audit-level=high means the pipeline only fails on HIGH
+    // or CRITICAL severity vulnerabilities, not low/moderate.
+    // ─────────────────────────────────────────────────────────────
+    stage('Security Audit') {
+      steps {
+        dir('backend') {
+          sh 'npm audit --audit-level=high'
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 8 — SAM Validate
-    // // Validates template.yaml syntax and resource references.
-    // // Catches missing properties, invalid resource types, and
-    // // incorrect SAM transform syntax BEFORE building.
-    // // --lint flag also checks for best practice warnings.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('SAM Validate') {
-    //   steps {
-    //     dir('backend') {
-    //       sh "sam validate --region ${env.AWS_REGION} --lint"
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 8 — SAM Validate
+    // Validates template.yaml syntax and resource references.
+    // Catches missing properties, invalid resource types, and
+    // incorrect SAM transform syntax BEFORE building.
+    // --lint flag also checks for best practice warnings.
+    // ─────────────────────────────────────────────────────────────
+    stage('SAM Validate') {
+      steps {
+        dir('backend') {
+          sh "sam validate --region ${env.AWS_REGION} --lint"
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 9 — SAM Build
-    // // Compiles TypeScript Lambda handlers using esbuild.
-    // // --parallel builds all functions simultaneously.
-    // // Output goes to .aws-sam/build/ — one folder per function.
-    // // esbuild bundles each handler + its shared/ imports into
-    // // a single JS file, keeping Lambda packages small.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('SAM Build') {
-    //   steps {
-    //     dir('backend') {
-    //       sh 'sam build --parallel'
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 9 — SAM Build
+    // Compiles TypeScript Lambda handlers using esbuild.
+    // --parallel builds all functions simultaneously.
+    // Output goes to .aws-sam/build/ — one folder per function.
+    // esbuild bundles each handler + its shared/ imports into
+    // a single JS file, keeping Lambda packages small.
+    // ─────────────────────────────────────────────────────────────
+    stage('SAM Build') {
+      steps {
+        dir('backend') {
+          sh 'sam build --parallel'
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 10 — Approval Gate (prod only)
-    // // dev deploys automatically — no gate needed for dev.
-    // // prod requires manual approval to prevent accidental deploys.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Approval') {
-    //   when {
-    //     expression { return env.ENV_NAME == 'prod' }
-    //   }
-    //   steps {
-    //     timeout(time: 30, unit: 'MINUTES') {
-    //       input(
-    //         message: "Deploy backend to PRODUCTION?",
-    //         ok: 'Yes, deploy'
-    //       )
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 10 — Approval Gate (prod only)
+    // dev deploys automatically — no gate needed for dev.
+    // prod requires manual approval to prevent accidental deploys.
+    // ─────────────────────────────────────────────────────────────
+    stage('Approval') {
+      when {
+        expression { return env.ENV_NAME == 'prod' }
+      }
+      steps {
+        timeout(time: 30, unit: 'MINUTES') {
+          input(
+            message: "Deploy backend to PRODUCTION?",
+            ok: 'Yes, deploy'
+          )
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 11 — Read SSM Parameters
-    // // Reads values written by CDK stacks into SSM.
-    // // These are passed as --parameter-overrides to sam deploy
-    // // so the SAM template can wire up:
-    // //   - DynamoDB table name → Lambda env var
-    // //   - Cognito pool ID + client ID → JWT authorizer
-    // //   - CloudFront domain → CORS allowed origin
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Read SSM Config') {
-    //   steps {
-    //     script {
-    //       def getParam = { String name ->
-    //         sh(
-    //           script: """
-    //             aws ssm get-parameter \
-    //               --name "/${env.APP_NAME}/${env.ENV_NAME}/${name}" \
-    //               --region ${env.AWS_REGION} \
-    //               --query Parameter.Value \
-    //               --output text
-    //           """,
-    //           returnStdout: true
-    //         ).trim()
-    //       }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 11 — Read SSM Parameters
+    // Reads values written by CDK stacks into SSM.
+    // These are passed as --parameter-overrides to sam deploy
+    // so the SAM template can wire up:
+    //   - DynamoDB table name → Lambda env var
+    //   - Cognito pool ID + client ID → JWT authorizer
+    //   - CloudFront domain → CORS allowed origin
+    // ─────────────────────────────────────────────────────────────
+    stage('Read SSM Config') {
+      steps {
+        script {
+          def getParam = { String name ->
+            sh(
+              script: """
+                aws ssm get-parameter \
+                  --name "/${env.APP_NAME}/${env.ENV_NAME}/${name}" \
+                  --region ${env.AWS_REGION} \
+                  --query Parameter.Value \
+                  --output text
+              """,
+              returnStdout: true
+            ).trim()
+          }
 
-    //       env.TABLE_NAME          = getParam('database/main-table-name')
-    //       env.TABLE_ARN           = getParam('database/main-table-arn')
-    //       env.TABLE_GSI1_ARN      = getParam('database/main-table-gsi1-arn')
-    //       env.COGNITO_POOL_ID     = getParam('cognito/user-pool-id')
-    //       env.COGNITO_CLIENT_ID   = getParam('cognito/app-client-id')
-    //       env.COGNITO_ISSUER_URL  = getParam('cognito/issuer-url')
-    //       env.CLOUDFRONT_DOMAIN   = getParam('edge/cloudfront-domain')
+          env.TABLE_NAME          = getParam('database/main-table-name')
+          env.TABLE_ARN           = getParam('database/main-table-arn')
+          env.TABLE_GSI1_ARN      = getParam('database/main-table-gsi1-arn')
+          env.COGNITO_POOL_ID     = getParam('cognito/user-pool-id')
+          env.COGNITO_CLIENT_ID   = getParam('cognito/app-client-id')
+          env.COGNITO_ISSUER_URL  = getParam('cognito/issuer-url')
+          env.CLOUDFRONT_DOMAIN   = getParam('edge/cloudfront-domain')
 
-    //       echo "TableName:        ${env.TABLE_NAME}"
-    //       echo "CognitoPoolId:    ${env.COGNITO_POOL_ID}"
-    //       echo "CloudFrontDomain: ${env.CLOUDFRONT_DOMAIN}"
-    //     }
-    //   }
-    // }
+          echo "TableName:        ${env.TABLE_NAME}"
+          echo "CognitoPoolId:    ${env.COGNITO_POOL_ID}"
+          echo "CloudFrontDomain: ${env.CLOUDFRONT_DOMAIN}"
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 12 — SAM Deploy
-    // // Deploys Lambda functions + HTTP API Gateway to AWS.
-    // // --config-env selects the correct [dev] or [prod] block
-    // //   from samconfig.toml.
-    // // --no-fail-on-empty-changeset prevents pipeline failure when
-    // //   nothing has changed since the last deploy.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('SAM Deploy') {
-    //   steps {
-    //     dir('backend') {
-    //       sh """
-    //         sam deploy \
-    //           --config-env ${env.ENV_NAME} \
-    //           --region ${env.AWS_REGION} \
-    //           --parameter-overrides \
-    //             AppName=${env.APP_NAME} \
-    //             EnvName=${env.ENV_NAME} \
-    //             TableName=${env.TABLE_NAME} \
-    //             TableArn=${env.TABLE_ARN} \
-    //             TableGsi1Arn=${env.TABLE_GSI1_ARN} \
-    //             CognitoUserPoolId=${env.COGNITO_POOL_ID} \
-    //             CognitoClientId=${env.COGNITO_CLIENT_ID} \
-    //             CognitoIssuerUrl=${env.COGNITO_ISSUER_URL} \
-    //             CloudFrontDomain=${env.CLOUDFRONT_DOMAIN} \
-    //             AwsRegion=${env.AWS_REGION} \
-    //           --no-fail-on-empty-changeset
-    //       """
-    //     }
-    //   }
-    // }
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 12 — SAM Deploy
+    // Deploys Lambda functions + HTTP API Gateway to AWS.
+    // --config-env selects the correct [dev] or [prod] block
+    //   from samconfig.toml.
+    // --no-fail-on-empty-changeset prevents pipeline failure when
+    //   nothing has changed since the last deploy.
+    // ─────────────────────────────────────────────────────────────
+    stage('SAM Deploy') {
+      steps {
+        dir('backend') {
+          sh """
+            sam deploy \
+              --config-env ${env.ENV_NAME} \
+              --region ${env.AWS_REGION} \
+              --parameter-overrides \
+                AppName=${env.APP_NAME} \
+                EnvName=${env.ENV_NAME} \
+                TableName=${env.TABLE_NAME} \
+                TableArn=${env.TABLE_ARN} \
+                TableGsi1Arn=${env.TABLE_GSI1_ARN} \
+                CognitoUserPoolId=${env.COGNITO_POOL_ID} \
+                CognitoClientId=${env.COGNITO_CLIENT_ID} \
+                CognitoIssuerUrl=${env.COGNITO_ISSUER_URL} \
+                CloudFrontDomain=${env.CLOUDFRONT_DOMAIN} \
+                AwsRegion=${env.AWS_REGION} \
+              --no-fail-on-empty-changeset
+          """
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 13 — Write API Endpoint to SSM
-    // // Reads the API endpoint from CloudFormation stack outputs
-    // // and writes it to SSM so the frontend pipeline can read it
-    // // and bake it into the Next.js build as NEXT_PUBLIC_API_ENDPOINT.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Export API Endpoint') {
-    //   steps {
-    //     script {
-    //       def stackName = "${env.APP_NAME}-${env.ENV_NAME}-backend"
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 13 — Write API Endpoint to SSM
+    // Reads the API endpoint from CloudFormation stack outputs
+    // and writes it to SSM so the frontend pipeline can read it
+    // and bake it into the Next.js build as NEXT_PUBLIC_API_ENDPOINT.
+    // ─────────────────────────────────────────────────────────────
+    stage('Export API Endpoint') {
+      steps {
+        script {
+          def stackName = "${env.APP_NAME}-${env.ENV_NAME}-backend"
 
-    //       def apiEndpoint = sh(
-    //         script: """
-    //           aws cloudformation describe-stacks \
-    //             --stack-name ${stackName} \
-    //             --region ${env.AWS_REGION} \
-    //             --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
-    //             --output text
-    //         """,
-    //         returnStdout: true
-    //       ).trim()
+          def apiEndpoint = sh(
+            script: """
+              aws cloudformation describe-stacks \
+                --stack-name ${stackName} \
+                --region ${env.AWS_REGION} \
+                --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
 
-    //       sh """
-    //         aws ssm put-parameter \
-    //           --name "/${env.APP_NAME}/${env.ENV_NAME}/backend/api-endpoint" \
-    //           --value "${apiEndpoint}" \
-    //           --type String \
-    //           --overwrite \
-    //           --region ${env.AWS_REGION}
-    //       """
+          sh """
+            aws ssm put-parameter \
+              --name "/${env.APP_NAME}/${env.ENV_NAME}/backend/api-endpoint" \
+              --value "${apiEndpoint}" \
+              --type String \
+              --overwrite \
+              --region ${env.AWS_REGION}
+          """
 
-    //       echo "API endpoint written to SSM: ${apiEndpoint}"
-    //     }
-    //   }
-    // }
+          echo "API endpoint written to SSM: ${apiEndpoint}"
+        }
+      }
+    }
 
-    // // ─────────────────────────────────────────────────────────────
-    // // STAGE 14 — Smoke Test
-    // // Hits the /health endpoint to verify API Gateway + Lambda
-    // // are actually responding after deployment.
-    // // -f flag makes curl return a non-zero exit code on HTTP errors
-    // // so the pipeline fails if the endpoint is not healthy.
-    // // ─────────────────────────────────────────────────────────────
-    // stage('Smoke Test') {
-    //   steps {
-    //     script {
-    //       def apiEndpoint = sh(
-    //         script: """
-    //           aws ssm get-parameter \
-    //             --name "/${env.APP_NAME}/${env.ENV_NAME}/backend/api-endpoint" \
-    //             --region ${env.AWS_REGION} \
-    //             --query Parameter.Value \
-    //             --output text
-    //         """,
-    //         returnStdout: true
-    //       ).trim()
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 14 — Smoke Test
+    // Hits the /health endpoint to verify API Gateway + Lambda
+    // are actually responding after deployment.
+    // -f flag makes curl return a non-zero exit code on HTTP errors
+    // so the pipeline fails if the endpoint is not healthy.
+    // ─────────────────────────────────────────────────────────────
+    stage('Smoke Test') {
+      steps {
+        script {
+          def apiEndpoint = sh(
+            script: """
+              aws ssm get-parameter \
+                --name "/${env.APP_NAME}/${env.ENV_NAME}/backend/api-endpoint" \
+                --region ${env.AWS_REGION} \
+                --query Parameter.Value \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
 
-    //       sh "curl -f ${apiEndpoint}/health"
-    //     }
-    //   }
-    // }
+          sh "curl -f ${apiEndpoint}/health"
+        }
+      }
+    }
 
   }
 
