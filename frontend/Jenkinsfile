@@ -1,0 +1,310 @@
+pipeline {
+  agent any
+
+  environment {
+    APP_NAME       = 'expense-tracker'
+    AWS_REGION     = 'ap-south-1'
+    AWS_ACCOUNT_ID = credentials('aws-account-id')
+  }
+
+  stages {
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 1 — Checkout
+    // ─────────────────────────────────────────────────────────────
+    stage('Checkout') {
+      steps {
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: "*/${env.BRANCH_NAME}"]],
+          userRemoteConfigs: [[
+            url: 'git@github.com:Niketan1604/Expense-Tracker.git',
+            credentialsId: 'github-ssh-key'
+          ]]
+        ])
+        script {
+          env.ENV_NAME = env.BRANCH_NAME == 'main' ? 'prod' : 'dev'
+          env.DEPLOY_ROLE_ARN = "arn:aws:iam::${env.AWS_ACCOUNT_ID}:role/${env.APP_NAME}-${env.ENV_NAME}-jenkins-deploy-role"
+          echo "Branch:      ${env.BRANCH_NAME}"
+          echo "Environment: ${env.ENV_NAME}"
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 2 — Assume IAM Role
+    // ─────────────────────────────────────────────────────────────
+    stage('Assume Role') {
+      steps {
+        script {
+          def creds = sh(
+            script: """
+              aws sts assume-role \
+                --role-arn ${env.DEPLOY_ROLE_ARN} \
+                --role-session-name jenkins-frontend-\$(date +%s) \
+                --duration-seconds 3600 \
+                --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim().split('\\s+')
+
+          env.AWS_ACCESS_KEY_ID     = creds[0]
+          env.AWS_SECRET_ACCESS_KEY = creds[1]
+          env.AWS_SESSION_TOKEN     = creds[2]
+
+          sh 'aws sts get-caller-identity'
+        }
+      }
+    }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 3 — Install Dependencies
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Install Dependencies') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh 'npm ci'
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 4 — TypeScript Type Check
+    // // next build also does type checking but this runs it standalone
+    // // and faster — catches errors without doing a full build.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Type Check') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh 'npx tsc --noEmit'
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 5 — Lint
+    // // next lint runs ESLint with Next.js specific rules:
+    // //   - no missing keys in lists
+    // //   - no invalid next/image usage
+    // //   - no deprecated next/link usage
+    // //   - other Next.js best practices
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Lint') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh 'npm run lint'
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 6 — Unit Tests
+    // // --passWithNoTests allows pipeline to pass while tests are
+    // // being written. Remove this flag once tests exist.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Unit Tests') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh 'npx jest --ci --passWithNoTests'
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 7 — Security Audit
+    // // Scans frontend dependencies for known CVEs.
+    // // Frontend has more dependencies than backend (React, Next.js
+    // // ecosystem) so this is especially important here.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Security Audit') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh 'npm audit --audit-level=high'
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 8 — Read SSM Config
+    // // Reads values written by CDK + SAM pipelines from SSM.
+    // // These are exported as NEXT_PUBLIC_* environment variables
+    // // so Next.js bakes them into the static build at build time.
+    // // NEXT_PUBLIC_* vars are safe to expose in the browser bundle.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Read SSM Config') {
+    //   steps {
+    //     script {
+    //       def getParam = { String name ->
+    //         sh(
+    //           script: """
+    //             aws ssm get-parameter \
+    //               --name "/${env.APP_NAME}/${env.ENV_NAME}/${name}" \
+    //               --region ${env.AWS_REGION} \
+    //               --query Parameter.Value \
+    //               --output text
+    //           """,
+    //           returnStdout: true
+    //         ).trim()
+    //       }
+
+    //       env.NEXT_PUBLIC_API_ENDPOINT            = getParam('backend/api-endpoint')
+    //       env.NEXT_PUBLIC_COGNITO_USER_POOL_ID    = getParam('cognito/user-pool-id')
+    //       env.NEXT_PUBLIC_COGNITO_CLIENT_ID       = getParam('cognito/app-client-id')
+    //       env.NEXT_PUBLIC_AWS_REGION              = env.AWS_REGION
+    //       env.S3_BUCKET_NAME                      = getParam('frontend/bucket-name')
+    //       env.CLOUDFRONT_DISTRIBUTION_ID          = getParam('edge/cloudfront-distribution-id')
+
+    //       echo "API Endpoint:  ${env.NEXT_PUBLIC_API_ENDPOINT}"
+    //       echo "S3 Bucket:     ${env.S3_BUCKET_NAME}"
+    //       echo "CloudFront ID: ${env.CLOUDFRONT_DISTRIBUTION_ID}"
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 9 — Next.js Build
+    // // Runs next build which:
+    // //   1. Compiles TypeScript
+    // //   2. Bundles all pages
+    // //   3. Pre-renders all pages as static HTML (output: 'export')
+    // //   4. Outputs everything to the out/ directory
+    // // NEXT_PUBLIC_* env vars are baked into the JS bundle here.
+    // // The out/ directory is what gets uploaded to S3.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Next.js Build') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh 'npm run build'
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 10 — Validate Build Output
+    // // Sanity check that the build actually produced output.
+    // // Catches silent build failures where next build exits 0
+    // // but didn't generate the expected files.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Validate Build') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh '''
+    //         if [ ! -f out/index.html ]; then
+    //           echo "Build failed — out/index.html not found"
+    //           exit 1
+    //         fi
+    //         echo "Build output validated — out/index.html exists"
+    //         echo "Total files: $(find out -type f | wc -l)"
+    //       '''
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 11 — Approval Gate (prod only)
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Approval') {
+    //   when {
+    //     expression { return env.ENV_NAME == 'prod' }
+    //   }
+    //   steps {
+    //     timeout(time: 30, unit: 'MINUTES') {
+    //       input(
+    //         message: "Deploy frontend to PRODUCTION?",
+    //         ok: 'Yes, deploy'
+    //       )
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 12 — S3 Sync
+    // // Uploads the out/ directory to S3.
+    // // Two separate syncs with different cache headers:
+    // //
+    // // Pass 1 — static assets (JS, CSS, images):
+    // //   max-age=31536000 (1 year) + immutable
+    // //   These files have content hashes in their names (e.g.
+    // //   main-abc123.js) so they never change. Long cache = fast.
+    // //
+    // // Pass 2 — HTML files:
+    // //   max-age=0 + must-revalidate
+    // //   HTML files don't have hashes — same URL, new content.
+    // //   Short cache ensures CloudFront fetches fresh HTML after
+    // //   each deploy once cache is invalidated in Stage 13.
+    // //
+    // // --delete removes files from S3 that no longer exist in out/
+    // // so old build artifacts don't accumulate.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('S3 Sync') {
+    //   steps {
+    //     dir('frontend') {
+    //       sh """
+    //         # Sync static assets with long cache
+    //         aws s3 sync out/ s3://${env.S3_BUCKET_NAME} \
+    //           --region ${env.AWS_REGION} \
+    //           --delete \
+    //           --exclude "*.html" \
+    //           --cache-control "public, max-age=31536000, immutable"
+
+    //         # Sync HTML files with no cache
+    //         aws s3 sync out/ s3://${env.S3_BUCKET_NAME} \
+    //           --region ${env.AWS_REGION} \
+    //           --exclude "*" \
+    //           --include "*.html" \
+    //           --cache-control "public, max-age=0, must-revalidate"
+    //       """
+    //     }
+    //   }
+    // }
+
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 13 — CloudFront Invalidation
+    // // Tells all CloudFront edge nodes to discard their cached
+    // // copies and fetch fresh files from S3 on the next request.
+    // // Without this, users see the old cached site for up to 24hrs
+    // // even though S3 has the new files.
+    // // "/*" invalidates every path — simple and reliable.
+    // // Invalidation is asynchronous — it takes ~30-60 seconds to
+    // // propagate to all edge locations. Pipeline doesn't wait.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('CloudFront Invalidation') {
+    //   steps {
+    //     script {
+    //       def invalidationId = sh(
+    //         script: """
+    //           aws cloudfront create-invalidation \
+    //             --distribution-id ${env.CLOUDFRONT_DISTRIBUTION_ID} \
+    //             --paths "/*" \
+    //             --query 'Invalidation.Id' \
+    //             --output text
+    //         """,
+    //         returnStdout: true
+    //       ).trim()
+
+    //       echo "CloudFront invalidation created: ${invalidationId}"
+    //       echo "Propagation takes ~30-60 seconds across all edge locations"
+    //     }
+    //   }
+    // }
+
+  }
+
+  post {
+    always {
+      script {
+        env.AWS_ACCESS_KEY_ID     = ''
+        env.AWS_SECRET_ACCESS_KEY = ''
+        env.AWS_SESSION_TOKEN     = ''
+      }
+    }
+    success {
+      echo "✓ Frontend deploy to ${env.ENV_NAME} succeeded"
+    }
+    failure {
+      echo "✗ Frontend deploy to ${env.ENV_NAME} failed"
+    }
+  }
+
+}
