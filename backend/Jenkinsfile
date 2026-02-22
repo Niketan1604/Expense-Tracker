@@ -54,6 +54,7 @@ pipeline {
           env.AWS_SESSION_TOKEN     = creds[2]
 
           sh 'aws sts get-caller-identity'
+          echo "Assumed role: ${env.DEPLOY_ROLE_ARN}"
         }
       }
     }

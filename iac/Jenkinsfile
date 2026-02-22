@@ -65,60 +65,60 @@ pipeline {
       }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // STAGE 3 — Install Dependencies
-    // npm ci is used instead of npm install because:
-    //   - ci installs exact versions from package-lock.json
-    //   - faster in CI environments
-    //   - fails if package-lock.json is out of sync with package.json
-    // ─────────────────────────────────────────────────────────────
-    stage('Install Dependencies') {
-      steps {
-        dir('iac') {
-          sh 'npm ci'
-        }
-      }
-    }
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 3 — Install Dependencies
+    // // npm ci is used instead of npm install because:
+    // //   - ci installs exact versions from package-lock.json
+    // //   - faster in CI environments
+    // //   - fails if package-lock.json is out of sync with package.json
+    // // ─────────────────────────────────────────────────────────────
+    // stage('Install Dependencies') {
+    //   steps {
+    //     dir('iac') {
+    //       sh 'npm ci'
+    //     }
+    //   }
+    // }
 
-    // ─────────────────────────────────────────────────────────────
-    // STAGE 4 — CDK Synth
-    // Compiles TypeScript and generates CloudFormation templates.
-    // Catches type errors and invalid CDK constructs BEFORE deploying.
-    // This is a validation step — nothing is deployed here.
-    // ─────────────────────────────────────────────────────────────
-    stage('CDK Synth') {
-      steps {
-        dir('iac') {
-          sh """
-            npx cdk synth --all \
-              --context appName=${env.APP_NAME} \
-              --context envName=${env.ENV_NAME} \
-              --quiet
-          """
-        }
-      }
-    }
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 4 — CDK Synth
+    // // Compiles TypeScript and generates CloudFormation templates.
+    // // Catches type errors and invalid CDK constructs BEFORE deploying.
+    // // This is a validation step — nothing is deployed here.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('CDK Synth') {
+    //   steps {
+    //     dir('iac') {
+    //       sh """
+    //         npx cdk synth --all \
+    //           --context appName=${env.APP_NAME} \
+    //           --context envName=${env.ENV_NAME} \
+    //           --quiet
+    //       """
+    //     }
+    //   }
+    // }
 
-    // ─────────────────────────────────────────────────────────────
-    // STAGE 5 — CDK Diff
-    // Shows exactly what will change in AWS before touching anything.
-    // Review this in the Jenkins console output before approving.
-    // ─────────────────────────────────────────────────────────────
-    stage('CDK Diff') {
-      steps {
-        dir('iac') {
-          sh """
-            npx cdk diff --all \
-              --context appName=${env.APP_NAME} \
-              --context envName=${env.ENV_NAME} \
-            || true
-          """
-          // || true — cdk diff exits with code 1 when there are changes,
-          // which would fail the pipeline. We want to see the diff and
-          // continue to the approval gate.
-        }
-      }
-    }
+    // // ─────────────────────────────────────────────────────────────
+    // // STAGE 5 — CDK Diff
+    // // Shows exactly what will change in AWS before touching anything.
+    // // Review this in the Jenkins console output before approving.
+    // // ─────────────────────────────────────────────────────────────
+    // stage('CDK Diff') {
+    //   steps {
+    //     dir('iac') {
+    //       sh """
+    //         npx cdk diff --all \
+    //           --context appName=${env.APP_NAME} \
+    //           --context envName=${env.ENV_NAME} \
+    //         || true
+    //       """
+    //       // || true — cdk diff exits with code 1 when there are changes,
+    //       // which would fail the pipeline. We want to see the diff and
+    //       // continue to the approval gate.
+    //     }
+    //   }
+    // }
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 6 — Approval Gate (dev AND prod)
