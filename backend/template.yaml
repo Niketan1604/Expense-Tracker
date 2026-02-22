@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Expense Tracker — Backend (Lambda + API Gateway)
+
+Parameters:
+  AppName:
+    Type: String
+    Default: expense-tracker
+  EnvName:
+    Type: String
+    AllowedValues: [dev, prod]
+
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Architectures: [arm64]
+    Timeout: 15
+    MemorySize: 256
+    Tracing: Active
+    Environment:
+      Variables:
+        NODE_OPTIONS: '--enable-source-maps'
+
+Resources:
+  # Placeholder — Lambda functions and HTTP API will be added here
+  # in the backend implementation sprint
+
+Outputs:
+  # API endpoint will be exported here after implementation

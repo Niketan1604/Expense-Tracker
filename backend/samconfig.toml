@@ -1,0 +1,17 @@
+version = 0.1
+
+[dev.deploy.parameters]
+stack_name        = "expense-tracker-dev-backend"
+region            = "ap-south-1"
+confirm_changeset = false
+capabilities      = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3        = true
+s3_prefix         = "expense-tracker-dev"
+
+[prod.deploy.parameters]
+stack_name        = "expense-tracker-prod-backend"
+region            = "ap-south-1"
+confirm_changeset = false
+capabilities      = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+resolve_s3        = true
+s3_prefix         = "expense-tracker-prod"
