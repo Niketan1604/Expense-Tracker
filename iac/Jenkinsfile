@@ -87,6 +87,7 @@ pipeline {
       steps {
         dir('iac') {
           sh """
+            NODE_OPTIONS="--max-old-space-size=2048" \
             npx cdk synth --all \
               --context env=${env.ENV_NAME} \
               --quiet
