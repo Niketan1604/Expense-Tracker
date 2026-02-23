@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '3'))
+  }
+
   environment {
     APP_NAME       = 'expense-tracker'
     AWS_REGION     = 'ap-south-1'
@@ -300,6 +304,7 @@ pipeline {
         env.AWS_SECRET_ACCESS_KEY = ''
         env.AWS_SESSION_TOKEN     = ''
       }
+      cleanWs()
     }
     success {
       echo "✓ Frontend deploy to ${env.ENV_NAME} succeeded"
