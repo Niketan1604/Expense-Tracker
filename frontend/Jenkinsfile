@@ -57,7 +57,6 @@ pipeline {
           env.AWS_SECRET_ACCESS_KEY = creds[1]
           env.AWS_SESSION_TOKEN     = creds[2]
 
-          sh 'aws sts get-caller-identity'
         }
       }
     }
@@ -140,11 +139,13 @@ pipeline {
       steps {
         script {
           def getParam = { String name, String region = env.AWS_REGION ->
+            def resolveRegion = region == 'us-east-1' ? 'us-east-1' : env.AWS_REGION
+
             sh(
               script: """
                 aws ssm get-parameter \
                   --name "/${env.APP_NAME}/${env.ENV_NAME}/${name}" \
-                  --region ${region} \
+                  --region ${resolveRegion} \
                   --query Parameter.Value \
                   --output text
               """,
