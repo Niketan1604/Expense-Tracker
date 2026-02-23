@@ -187,18 +187,22 @@ export class ExpenseTrackerIamStack extends Stack {
       maxSessionDuration: Duration.hours(2) // CDK deploys can take time
     });
 
-    //to fetch bootstrap version (CDK v2 requires this for deploys, and it must be explicitly allowed in the boundary)
+    // CDK bootstrap version check
+    // CDK v2 requires this SSM read before every deploy to confirm bootstrap is current
+    // us-east-1 also needed for the Edge (CloudFront) stack which deploys there
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       sid: 'CdkBootstrapVersionCheck',
       effect: iam.Effect.ALLOW,
       actions: ['ssm:GetParameter'],
       resources: [
-        `arn:aws:ssm:${this.region}:${this.account}:parameter/cdk-bootstrap/hnb659fds/version`
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/cdk-bootstrap/hnb659fds/version`,
+        `arn:aws:ssm:us-east-1:${this.account}:parameter/cdk-bootstrap/hnb659fds/version`
       ],
-    }))
+    }));
 
     // Read + write SSM params for this env
     // the API endpoint to SSM after sam deploy
+    // us-east-1 edge params (cloudfront-domain, distribution-id)
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -208,11 +212,13 @@ export class ExpenseTrackerIamStack extends Stack {
         'ssm:PutParameter'
       ],
       resources: [
-        `arn:aws:ssm:${this.region}:${this.account}:parameter/${appName}/${envName}/*`
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/${appName}/${envName}/*`,
+        `arn:aws:ssm:us-east-1:${this.account}:parameter/${appName}/${envName}/*`
       ]
     }));
 
     // CDK bootstrap S3 bucket access (upload Lambda zips, assets)
+    // us-east-1 bootstrap bucket for Edge stack assets
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -225,7 +231,9 @@ export class ExpenseTrackerIamStack extends Stack {
       ],
       resources: [
         `arn:aws:s3:::cdk-hnb659fds-assets-${this.account}-${this.region}`,
-        `arn:aws:s3:::cdk-hnb659fds-assets-${this.account}-${this.region}/*`
+        `arn:aws:s3:::cdk-hnb659fds-assets-${this.account}-${this.region}/*`,
+        `arn:aws:s3:::cdk-hnb659fds-assets-${this.account}-us-east-1`,
+        `arn:aws:s3:::cdk-hnb659fds-assets-${this.account}-us-east-1/*`
       ]
     }));
 
@@ -253,12 +261,18 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // Pass cfn-execution-role to CloudFormation only
+    // Pass cfn-execution-role to CloudFormation only.
+    // Includes CDK bootstrap cfn-exec role (cdk-hnb659fds-cfn-exec-role-*)
+    // which CDK internally uses during every cdk deploy, separate from our
+    // custom cfn-execution-role. Both regions needed: ap-south-1 for all stacks,
+    // us-east-1 for the Edge (CloudFront) stack.
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['iam:PassRole'],
       resources: [
-        `arn:aws:iam::${this.account}:role/${appName}-${envName}-cfn-execution-role`
+        `arn:aws:iam::${this.account}:role/${appName}-${envName}-cfn-execution-role`,
+        `arn:aws:iam::${this.account}:role/cdk-hnb659fds-cfn-exec-role-${this.account}-${this.region}`,
+        `arn:aws:iam::${this.account}:role/cdk-hnb659fds-cfn-exec-role-${this.account}-us-east-1`
       ],
       conditions: {
         StringEquals: {
@@ -268,6 +282,7 @@ export class ExpenseTrackerIamStack extends Stack {
     }));
 
     // CloudFormation - scoped to app stacks only
+    // us-east-1 for Edge stack (CloudFront)
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -292,8 +307,8 @@ export class ExpenseTrackerIamStack extends Stack {
       resources: [
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/${appName}-${envName}-*/*`,
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`,
-        // FIX 7: Added us-east-1 — edge stack deploys there for CloudFront ACM
-        `arn:aws:cloudformation:us-east-1:${this.account}:stack/${appName}-${envName}-*/*`
+        `arn:aws:cloudformation:us-east-1:${this.account}:stack/${appName}-${envName}-*/*`,
+        `arn:aws:cloudformation:us-east-1:${this.account}:stack/CDKToolkit/*`
       ]
     }));
 
@@ -305,7 +320,8 @@ export class ExpenseTrackerIamStack extends Stack {
         'cloudformation:GetTemplate'
       ],
       resources: [
-        `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`
+        `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`,
+        `arn:aws:cloudformation:us-east-1:${this.account}:stack/CDKToolkit/*`
       ]
     }));
 
