@@ -187,10 +187,13 @@ pipeline {
       steps {
         dir('iac') {
           sh """
-            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
-              --app cdk.out \
-              --require-approval never
+            echo 'skipping cognito stack'
           """
+          // sh """
+          //   npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
+          //     --app cdk.out \
+          //     --require-approval never
+          // """
         }
       }
     }
