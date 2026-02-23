@@ -152,7 +152,7 @@ pipeline {
             ).trim()
           }
 
-          env.NEXT_PUBLIC_API_ENDPOINT            = getParam('backend/api-endpoint')
+          // env.NEXT_PUBLIC_API_ENDPOINT            = getParam('backend/api-endpoint')
           env.NEXT_PUBLIC_COGNITO_USER_POOL_ID    = getParam('cognito/user-pool-id')
           env.NEXT_PUBLIC_COGNITO_CLIENT_ID       = getParam('cognito/app-client-id')
           env.NEXT_PUBLIC_AWS_REGION              = env.AWS_REGION
@@ -161,7 +161,7 @@ pipeline {
           env.CLOUDFRONT_DISTRIBUTION_ID = getParam('edge/distribution-id', 'us-east-1')
           env.CLOUDFRONT_DOMAIN          = getParam('edge/cloudfront-domain', 'us-east-1')
 
-          echo "API Endpoint:  ${env.NEXT_PUBLIC_API_ENDPOINT}"
+          // echo "API Endpoint:  ${env.NEXT_PUBLIC_API_ENDPOINT}"
           echo "S3 Bucket:     ${env.S3_BUCKET_NAME}"
           echo "CloudFront:      https://${env.CLOUDFRONT_DOMAIN}"
         }
