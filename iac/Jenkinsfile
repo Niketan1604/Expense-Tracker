@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '3'))
+  }
+
   environment {
     APP_NAME       = 'expense-tracker'
     AWS_REGION     = 'ap-south-1'
@@ -58,7 +62,6 @@ pipeline {
           env.AWS_ACCESS_KEY_ID     = creds[0]
           env.AWS_SECRET_ACCESS_KEY = creds[1]
           env.AWS_SESSION_TOKEN     = creds[2]
-
         }
       }
     }
@@ -80,9 +83,11 @@ pipeline {
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 4 — CDK Synth
-    // Compiles TypeScript and generates CloudFormation templates.
-    // Catches type errors and invalid CDK constructs BEFORE deploying.
-    // This is a validation step — nothing is deployed here.
+    // Compiles TypeScript and generates CloudFormation templates
+    // into the cdk.out/ directory.
+    // All subsequent stages reuse this assembly via --app cdk.out
+    // so synthesis only happens once — what you diff is exactly
+    // what gets deployed, and the pipeline is faster overall.
     // ─────────────────────────────────────────────────────────────
     stage('CDK Synth') {
       steps {
@@ -99,6 +104,7 @@ pipeline {
     // ─────────────────────────────────────────────────────────────
     // STAGE 5 — CDK Diff
     // Shows exactly what will change in AWS before touching anything.
+    // Uses pre-built cdk.out — no re-synthesis.
     // Review this in the Jenkins console output before approving.
     // ─────────────────────────────────────────────────────────────
     stage('CDK Diff') {
@@ -106,7 +112,7 @@ pipeline {
         dir('iac') {
           sh """
             npx cdk diff --all \
-              --context env=${env.ENV_NAME} \
+              --app cdk.out \
             || true
           """
           // || true — cdk diff exits with code 1 when there are changes,
@@ -137,13 +143,14 @@ pipeline {
     // STAGE 7 — Deploy IAM Stack
     // Always deployed first — every other stack depends on the
     // roles and permission boundaries defined here.
+    // Uses pre-built cdk.out — no re-synthesis.
     // ─────────────────────────────────────────────────────────────
     stage('Deploy: IAM') {
       steps {
         dir('iac') {
           sh """
             npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-iam \
-              --context env=${env.ENV_NAME} \
+              --app cdk.out \
               --require-approval never
           """
         }
@@ -155,13 +162,14 @@ pipeline {
     // Creates DynamoDB table and writes table name + ARN to SSM.
     // SAM backend reads these SSM params at deploy time.
     // Must come after IAM so the cfn-execution-role exists.
+    // Uses pre-built cdk.out — no re-synthesis.
     // ─────────────────────────────────────────────────────────────
     stage('Deploy: Database') {
       steps {
         dir('iac') {
           sh """
             npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-database \
-              --context env=${env.ENV_NAME} \
+              --app cdk.out \
               --require-approval never
           """
         }
@@ -173,13 +181,14 @@ pipeline {
     // Creates User Pool + App Client.
     // Writes user pool ID, client ID, and issuer URL to SSM.
     // SAM backend reads these to configure the JWT authorizer.
+    // Uses pre-built cdk.out — no re-synthesis.
     // ─────────────────────────────────────────────────────────────
     stage('Deploy: Cognito') {
       steps {
         dir('iac') {
           sh """
             npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
-              --context env=${env.ENV_NAME} \
+              --app cdk.out \
               --require-approval never
           """
         }
@@ -191,13 +200,14 @@ pipeline {
     // Creates the S3 bucket for the Next.js static export.
     // Writes bucket name to SSM.
     // Must come before Edge stack — CloudFront needs the bucket.
+    // Uses pre-built cdk.out — no re-synthesis.
     // ─────────────────────────────────────────────────────────────
     stage('Deploy: Frontend S3') {
       steps {
         dir('iac') {
           sh """
             npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-frontend \
-              --context env=${env.ENV_NAME} \
+              --app cdk.out \
               --require-approval never
           """
         }
@@ -205,21 +215,46 @@ pipeline {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 11 — Deploy Edge Stack (CloudFront + ACM)
-    // Deployed to us-east-1 — required by CloudFront for ACM certs.
-    // ACM certificate validation takes ~15 minutes — pipeline waits.
-    // Writes CloudFront domain + distribution ID to SSM.
+    // STAGE 11 — Deploy Edge Stack (CloudFront)
+    // Deployed to us-east-1 — required by CloudFront.
+    // Writes CloudFront domain + distribution ID to SSM (us-east-1).
     // SAM reads CloudFront domain for CORS config.
     // Frontend pipeline reads distribution ID for cache invalidation.
+    // Uses pre-built cdk.out — no re-synthesis.
     // ─────────────────────────────────────────────────────────────
-    stage('Deploy: Edge (CloudFront + ACM)') {
+    stage('Deploy: Edge (CloudFront)') {
       steps {
         dir('iac') {
           sh """
             npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-edge \
-              --context env=${env.ENV_NAME} \
+              --app cdk.out \
               --require-approval never
           """
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 12 — Print CloudFront URL
+    // Reads the CloudFront domain from SSM (us-east-1) and prints
+    // the live URL so you can open it directly from the console.
+    // ─────────────────────────────────────────────────────────────
+    stage('Print CloudFront URL') {
+      steps {
+        script {
+          def domain = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /expense-tracker/${env.ENV_NAME}/edge/cloudfront-domain \
+                --region us-east-1 \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  ✅ Live URL: https://${domain}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         }
       }
     }
@@ -228,7 +263,8 @@ pipeline {
 
   // ─────────────────────────────────────────────────────────────
   // POST — always clear assumed role credentials from environment
-  // so they don't leak into any subsequent processes
+  // so they don't leak into any subsequent processes.
+  // cleanWs() wipes the workspace after every build.
   // ─────────────────────────────────────────────────────────────
   post {
     always {
@@ -237,6 +273,7 @@ pipeline {
         env.AWS_SECRET_ACCESS_KEY = ''
         env.AWS_SESSION_TOKEN     = ''
       }
+      cleanWs()
     }
     success {
       echo "✓ IAC deploy to ${env.ENV_NAME} succeeded"

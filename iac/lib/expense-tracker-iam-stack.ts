@@ -187,6 +187,16 @@ export class ExpenseTrackerIamStack extends Stack {
       maxSessionDuration: Duration.hours(2) // CDK deploys can take time
     });
 
+    //to fetch bootstrap version (CDK v2 requires this for deploys, and it must be explicitly allowed in the boundary)
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'CdkBootstrapVersionCheck',
+      effect: iam.Effect.ALLOW,
+      actions: ['ssm:GetParameter'],
+      resources: [
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/cdk-bootstrap/hnb659fds/version`
+      ],
+    }))
+
     // Read + write SSM params for this env
     // the API endpoint to SSM after sam deploy
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
