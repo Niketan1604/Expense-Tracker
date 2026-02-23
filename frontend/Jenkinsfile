@@ -154,8 +154,8 @@ pipeline {
           }
 
           // env.NEXT_PUBLIC_API_ENDPOINT            = getParam('backend/api-endpoint')
-          env.NEXT_PUBLIC_COGNITO_USER_POOL_ID    = getParam('cognito/user-pool-id')
-          env.NEXT_PUBLIC_COGNITO_CLIENT_ID       = getParam('cognito/app-client-id')
+          // env.NEXT_PUBLIC_COGNITO_USER_POOL_ID    = getParam('cognito/user-pool-id')
+          // env.NEXT_PUBLIC_COGNITO_CLIENT_ID       = getParam('cognito/app-client-id')
           env.NEXT_PUBLIC_AWS_REGION              = env.AWS_REGION
           env.S3_BUCKET_NAME                      = getParam('frontend/bucket-name')
 
