@@ -163,7 +163,6 @@ pipeline {
           env.CLOUDFRONT_DOMAIN          = getParam('edge/cloudfront-domain', 'us-east-1')
 
           // echo "API Endpoint:  ${env.NEXT_PUBLIC_API_ENDPOINT}"
-          echo "testing triggers"
           echo "S3 Bucket:     ${env.S3_BUCKET_NAME}"
           echo "CloudFront:      https://${env.CLOUDFRONT_DOMAIN}"
         }
