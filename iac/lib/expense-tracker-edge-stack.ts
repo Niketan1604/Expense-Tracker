@@ -178,6 +178,14 @@ export class ExpenseTrackerEdgeStack extends Stack {
     //   directly via a Lambda-backed custom resource, bypassing CDK's
     //   ownership check.
     //
+    // WHY region: 'ap-south-1' on every call:
+    //   This stack deploys to us-east-1. Without an explicit region,
+    //   the Lambda hits the us-east-1 S3 endpoint — which rejects
+    //   requests for buckets in other regions with:
+    //   "The bucket must be addressed using the specified endpoint."
+    //   Passing region: 'ap-south-1' tells the AWS SDK inside the Lambda
+    //   to use the correct regional endpoint for the bucket.
+    //
     // The condition ensures ONLY this specific distribution can access
     // the bucket — not any other CloudFront distribution.
     // ─────────────────────────────────────────────────────────
@@ -212,9 +220,7 @@ export class ExpenseTrackerEdgeStack extends Stack {
             new iam.PolicyStatement({
               effect: iam.Effect.ALLOW,
               actions: ['s3:PutBucketPolicy', 's3:GetBucketPolicy'],
-              // Bucket is in ap-south-1, but this role is in us-east-1 —
-              // S3 bucket policies are a global S3 control plane operation
-              // so region doesn't matter in the ARN here
+              // S3 bucket policy ARNs never include region
               resources: [`arn:aws:s3:::${bucketName}`]
             })
           ]
@@ -231,7 +237,8 @@ export class ExpenseTrackerEdgeStack extends Stack {
           Bucket: bucketName,
           Policy: JSON.stringify(bucketPolicy)
         },
-        physicalResourceId: cr.PhysicalResourceId.of(`${bucketName}-oac-policy`)
+        physicalResourceId: cr.PhysicalResourceId.of(`${bucketName}-oac-policy`),
+        region: 'ap-south-1'  // bucket lives in ap-south-1, stack is in us-east-1
       },
       onUpdate: {
         service: 'S3',
@@ -240,14 +247,16 @@ export class ExpenseTrackerEdgeStack extends Stack {
           Bucket: bucketName,
           Policy: JSON.stringify(bucketPolicy)
         },
-        physicalResourceId: cr.PhysicalResourceId.of(`${bucketName}-oac-policy`)
+        physicalResourceId: cr.PhysicalResourceId.of(`${bucketName}-oac-policy`),
+        region: 'ap-south-1'  // bucket lives in ap-south-1, stack is in us-east-1
       },
       onDelete: {
         service: 'S3',
         action: 'deleteBucketPolicy',
         parameters: {
           Bucket: bucketName
-        }
+        },
+        region: 'ap-south-1'  // bucket lives in ap-south-1, stack is in us-east-1
       }
     });
 
