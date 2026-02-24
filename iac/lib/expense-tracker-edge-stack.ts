@@ -3,7 +3,9 @@ import { Construct } from 'constructs';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as cr from 'aws-cdk-lib/custom-resources';
 
 interface EdgeStackProps extends StackProps {
   appName: string;
@@ -20,18 +22,8 @@ export class ExpenseTrackerEdgeStack extends Stack {
     const { appName, envName, bucketName, bucketRegionalDomainName } = props;
 
     // =========================================================
-    // SSM — edge stack writes to ap-south-1 SSM even though
-    // this stack deploys to us-east-1. We do this by explicitly
-    // specifying the region in the SSM parameter name lookup.
-    //
-    // However, CDK SSM StringParameter always writes to the stack's
-    // region (us-east-1 here). To write to ap-south-1 we use
-    // CfnParameter directly with the correct region, OR we accept
-    // that these params live in us-east-1 and the Jenkinsfile
-    // reads from us-east-1.
-    //
-    // Simplest approach: write SSM to us-east-1 and read from
-    // us-east-1 in Jenkinsfile for these specific params.
+    // SSM — edge stack writes to us-east-1 (this stack's region).
+    // Jenkinsfile reads these params with --region us-east-1.
     // =========================================================
     const exportParam = (name: string, value: string) => {
       new ssm.StringParameter(this, `SSMParam-${name}`, {
@@ -147,9 +139,6 @@ export class ExpenseTrackerEdgeStack extends Stack {
 
       // HTTP/2 + HTTP/3 support
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
-
-      // No geo restriction — serve to India only since users are in India
-      geoRestriction: cloudfront.GeoRestriction.allowlist('IN')
     });
 
     // ─────────────────────────────────────────────────────────
@@ -181,27 +170,86 @@ export class ExpenseTrackerEdgeStack extends Stack {
     // ─────────────────────────────────────────────────────────
     // S3 Bucket Policy — allow CloudFront OAC to read objects
     //
-    // This grants the CloudFront distribution permission to
-    // GetObject from the S3 bucket using the OAC.
+    // WHY AwsCustomResource instead of bucket.addToResourcePolicy():
+    //   bucket is an imported resource (fromBucketAttributes), and CDK's
+    //   addToResourcePolicy() is a NO-OP on imported buckets — it silently
+    //   does nothing and never creates the policy. This is a known CDK
+    //   limitation. AwsCustomResource calls the S3 PutBucketPolicy API
+    //   directly via a Lambda-backed custom resource, bypassing CDK's
+    //   ownership check.
     //
-    // The condition ensures ONLY this specific distribution
-    // can access the bucket — not any other CloudFront distribution.
+    // The condition ensures ONLY this specific distribution can access
+    // the bucket — not any other CloudFront distribution.
     // ─────────────────────────────────────────────────────────
-    bucket.addToResourcePolicy(
-      new (require('aws-cdk-lib/aws-iam').PolicyStatement)({
-        effect: require('aws-cdk-lib/aws-iam').Effect.ALLOW,
-        principals: [
-          new (require('aws-cdk-lib/aws-iam').ServicePrincipal)('cloudfront.amazonaws.com')
-        ],
-        actions: ['s3:GetObject'],
-        resources: [`${bucket.bucketArn}/*`],
-        conditions: {
-          StringEquals: {
-            'AWS:SourceArn': `arn:aws:cloudfront::${this.account}:distribution/${distribution.distributionId}`
+    const bucketPolicy = {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Sid: 'AllowCloudFrontOAC',
+          Effect: 'Allow',
+          Principal: { Service: 'cloudfront.amazonaws.com' },
+          Action: 's3:GetObject',
+          Resource: `arn:aws:s3:::${bucketName}/*`,
+          Condition: {
+            StringEquals: {
+              'AWS:SourceArn': `arn:aws:cloudfront::${this.account}:distribution/${distribution.distributionId}`
+            }
           }
         }
-      })
-    );
+      ]
+    };
+
+    // Role for the custom resource Lambda to put the bucket policy
+    // Must have s3:PutBucketPolicy on the frontend bucket
+    const customResourceRole = new iam.Role(this, 'BucketPolicyCustomResourceRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')
+      ],
+      inlinePolicies: {
+        PutBucketPolicy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ['s3:PutBucketPolicy', 's3:GetBucketPolicy'],
+              // Bucket is in ap-south-1, but this role is in us-east-1 —
+              // S3 bucket policies are a global S3 control plane operation
+              // so region doesn't matter in the ARN here
+              resources: [`arn:aws:s3:::${bucketName}`]
+            })
+          ]
+        })
+      }
+    });
+
+    new cr.AwsCustomResource(this, 'FrontendBucketPolicy', {
+      role: customResourceRole,
+      onCreate: {
+        service: 'S3',
+        action: 'putBucketPolicy',
+        parameters: {
+          Bucket: bucketName,
+          Policy: JSON.stringify(bucketPolicy)
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(`${bucketName}-oac-policy`)
+      },
+      onUpdate: {
+        service: 'S3',
+        action: 'putBucketPolicy',
+        parameters: {
+          Bucket: bucketName,
+          Policy: JSON.stringify(bucketPolicy)
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(`${bucketName}-oac-policy`)
+      },
+      onDelete: {
+        service: 'S3',
+        action: 'deleteBucketPolicy',
+        parameters: {
+          Bucket: bucketName
+        }
+      }
+    });
 
     // =========================================================
     // SSM Exports

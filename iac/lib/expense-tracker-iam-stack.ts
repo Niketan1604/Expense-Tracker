@@ -2,6 +2,7 @@ import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import { CfnExecutionPlan } from 'aws-cdk-lib/aws-kendraranking';
 
 interface IamStackProps extends StackProps {
   appName: string;
@@ -586,6 +587,16 @@ export class ExpenseTrackerIamStack extends Stack {
             'apigateway.amazonaws.com'
           ]
         }
+      }
+    }));
+
+    // Add to cfnExecutionRole in iam-stack.ts
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['iam:PassRole'],
+      resources: [`arn:aws:iam::${this.account}:role/${appName}-${envName}-BucketPolicy*`],
+      conditions: {
+        StringEquals: { 'iam:PassedToService': 'lambda.amazonaws.com' }
       }
     }));
 
