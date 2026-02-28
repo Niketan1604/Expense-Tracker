@@ -1,7 +1,7 @@
 import { App } from 'aws-cdk-lib';
 import { ExpenseTrackerIamStack } from '../lib/expense-tracker-iam-stack';
 import { ExpenseTrackerDatabaseStack } from '../lib/expense-tracker-database-stack';
-// import { ExpenseTrackerCognitoStack } from '../lib/expense-tracker-cognito-stack';
+import { ExpenseTrackerCognitoStack } from '../lib/expense-tracker-cognito-stack';
 import { ExpenseTrackerEdgeStack } from '../lib/expense-tracker-edge-stack';
 import { ExpenseTrackerFrontendStack } from '../lib/expense-tracker-frontend-stack';
 
@@ -9,6 +9,13 @@ const app = new App();
 
 const appName = 'expense-tracker';
 const envName = app.node.tryGetContext('env') || 'dev';
+const cloudfrontDomain = app.node.tryGetContext('cloudfrontDomain');
+if (!cloudfrontDomain) {
+  throw new Error(
+    'Missing required context: cloudfrontDomain. ' +
+    'Pass it via: --context cloudfrontDomain=<value>. '
+  );
+}
 
 const iamStack = new ExpenseTrackerIamStack(app, `${appName}-${envName}-iam`, {
   appName,
@@ -28,16 +35,6 @@ const databaseStack = new ExpenseTrackerDatabaseStack(app, `${appName}-${envName
   }
 });
 databaseStack.addDependency(iamStack);
-
-// const cognitoStack = new ExpenseTrackerCognitoStack(app, `${appName}-${envName}-cognito`, {
-//   appName,
-//   envName,
-//   env: {
-//     account: process.env.CDK_DEFAULT_ACCOUNT,
-//     region: process.env.CDK_DEFAULT_REGION
-//   }
-// });
-// cognitoStack.addDependency(iamStack);
 
 const frontendStack = new ExpenseTrackerFrontendStack(app, `${appName}-${envName}-frontend`, {
   appName,
@@ -62,5 +59,17 @@ const edgeStack = new ExpenseTrackerEdgeStack(app, `${appName}-${envName}-edge`,
   crossRegionReferences: true
 });
 edgeStack.addDependency(frontendStack);
+
+const cognitoStack = new ExpenseTrackerCognitoStack(app, `${appName}-${envName}-cognito`, {
+  appName,
+  envName,
+  cloudfrontDomain,
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION
+  }
+});
+cognitoStack.addDependency(iamStack);
+cognitoStack.addDependency(edgeStack);
 
 app.synth();

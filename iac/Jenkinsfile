@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   options {
-    buildDiscarder(logRotator(numToKeepStr: '3'))
+    buildDiscarder(logRotator(numToKeepStr: '5'))
   }
 
   environment {
@@ -82,12 +82,44 @@ pipeline {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 4 — CDK Synth
+    // STAGE 4 — Read SSM Config
+    // Reads values from SSM that CDK needs at synth time.
+    // These cannot be read inside CDK itself because they live
+    // in a different region (us-east-1) than the stack (ap-south-1).
+    // We pass them as --context flags to cdk synth instead.
+    //
+    // cloudfrontDomain — written by edge stack to us-east-1 SSM.
+    //                    Cognito needs it for callbackUrls/logoutUrls.
+    //                    Must be read before synth, not at deploy time.
+    // ─────────────────────────────────────────────────────────────
+    stage('Read SSM Config') {
+      steps {
+        script {
+          env.CLOUDFRONT_DOMAIN = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/edge/cloudfront-domain \
+                --region us-east-1 \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+          echo "CloudFront Domain: ${env.CLOUDFRONT_DOMAIN}"
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 5 — CDK Synth
     // Compiles TypeScript and generates CloudFormation templates
     // into the cdk.out/ directory.
     // All subsequent stages reuse this assembly via --app cdk.out
     // so synthesis only happens once — what you diff is exactly
     // what gets deployed, and the pipeline is faster overall.
+    //
+    // --context cloudfrontDomain passes the value read from SSM
+    // into the CDK app so Cognito stack can use it for OAuth URLs.
     // ─────────────────────────────────────────────────────────────
     stage('CDK Synth') {
       steps {
@@ -95,6 +127,7 @@ pipeline {
           sh """
             npx cdk synth --all \
               --context env=${env.ENV_NAME} \
+              --context cloudfrontDomain=${env.CLOUDFRONT_DOMAIN} \
               --quiet
           """
         }
@@ -187,13 +220,10 @@ pipeline {
       steps {
         dir('iac') {
           sh """
-            echo 'skipping cognito stack'
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
+              --app cdk.out \
+              --require-approval never
           """
-          // sh """
-          //   npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
-          //     --app cdk.out \
-          //     --require-approval never
-          // """
         }
       }
     }

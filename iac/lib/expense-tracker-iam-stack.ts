@@ -19,7 +19,8 @@ export class ExpenseTrackerIamStack extends Stack {
     const exportParam = (name: string, value: string) => {
       new ssm.StringParameter(this, `SSMParam-${name}`, {
         parameterName: `/${appName}/${envName}/iam/${name}`,
-        stringValue: value
+        stringValue: value,
+        description: `${appName} ${envName} iam — ${name}`
       });
     };
 
