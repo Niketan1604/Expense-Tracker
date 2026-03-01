@@ -203,7 +203,7 @@ pipeline {
             sam deploy \
               --stack-name ${env.APP_NAME}-${env.ENV_NAME}-backend \
               --region ${env.AWS_REGION} \
-              --capabilities CAPABILITY_IAM \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM\
               --resolve-s3 \
               --force-upload \
               --no-fail-on-empty-changeset \
