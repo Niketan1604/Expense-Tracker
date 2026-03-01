@@ -328,6 +328,20 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'logs:CreateLogGroup',
+        'logs:DeleteLogGroup',
+        'logs:PutRetentionPolicy',
+        'logs:DescribeLogGroups'
+      ],
+      resources: [
+        `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/${appName}-${envName}-*`,
+        `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/${appName}-${envName}-*:*`
+      ]
+    }));
+
     // =========================================================
     // CloudFormation Execution Role
     // Assumed BY CloudFormation to create actual resources
