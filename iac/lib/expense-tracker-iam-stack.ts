@@ -327,6 +327,36 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'cloudformation:CreateChangeSet',
+        'cloudformation:DescribeChangeSet',
+        'cloudformation:ExecuteChangeSet',
+        'cloudformation:DescribeStacks',
+        'cloudformation:GetTemplateSummary'
+      ],
+      resources: [
+        `arn:aws:cloudformation:ap-south-1:${this.account}:stack/aws-sam-cli-managed-default/*`
+      ]
+    }));
+
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:CreateBucket',
+        's3:GetBucketLocation',
+        's3:PutBucketVersioning',
+        's3:PutBucketPolicy',
+        's3:PutLifecycleConfiguration',
+        's3:GetEncryptionConfiguration',
+        's3:PutEncryptionConfiguration'
+      ],
+      resources: [
+        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*`
+      ]
+    }));
+
     // =========================================================
     // CloudFormation Execution Role
     // Assumed BY CloudFormation SERVICE to create actual resources
