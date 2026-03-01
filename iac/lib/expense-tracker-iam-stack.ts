@@ -337,7 +337,7 @@ export class ExpenseTrackerIamStack extends Stack {
         'cloudformation:GetTemplateSummary'
       ],
       resources: [
-        `arn:aws:cloudformation:ap-south-1:${this.account}:stack/aws-sam-cli-managed-default/*`
+        `arn:aws:cloudformation:${this.region}:aws:transform/Serverless-2016-10-31`
       ]
     }));
 
