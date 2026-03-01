@@ -310,7 +310,9 @@ export class ExpenseTrackerIamStack extends Stack {
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/${appName}-${envName}-*/*`,
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`,
         `arn:aws:cloudformation:us-east-1:${this.account}:stack/${appName}-${envName}-*/*`,
-        `arn:aws:cloudformation:us-east-1:${this.account}:stack/CDKToolkit/*`
+        `arn:aws:cloudformation:us-east-1:${this.account}:stack/CDKToolkit/*`,
+        `arn:aws:cloudformation:${this.region}:aws:transform/Serverless-2016-10-31`,
+        `arn:aws:cloudformation:${this.region}:${this.account}:stack/aws-sam-cli-managed-default/*`
       ]
     }));
 
@@ -324,20 +326,6 @@ export class ExpenseTrackerIamStack extends Stack {
       resources: [
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`,
         `arn:aws:cloudformation:us-east-1:${this.account}:stack/CDKToolkit/*`
-      ]
-    }));
-
-    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: [
-        'cloudformation:CreateChangeSet',
-        'cloudformation:DescribeChangeSet',
-        'cloudformation:ExecuteChangeSet',
-        'cloudformation:DescribeStacks',
-        'cloudformation:GetTemplateSummary'
-      ],
-      resources: [
-        `arn:aws:cloudformation:${this.region}:aws:transform/Serverless-2016-10-31`
       ]
     }));
 
@@ -629,6 +617,14 @@ export class ExpenseTrackerIamStack extends Stack {
       conditions: {
         StringEquals: { 'iam:PassedToService': 'lambda.amazonaws.com' }
       }
+    }));
+
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['cloudformation:CreateChangeSet'],
+      resources: [
+        `arn:aws:cloudformation:${this.region}:aws:transform/Serverless-2016-10-31`
+      ]
     }));
 
     exportParam('cfn-execution-role-arn', cfnExecutionRole.roleArn);
