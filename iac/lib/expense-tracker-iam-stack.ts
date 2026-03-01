@@ -405,7 +405,9 @@ export class ExpenseTrackerIamStack extends Stack {
       actions: ['s3:*'],
       resources: [
         `arn:aws:s3:::${appName}-${envName}-*`,
-        `arn:aws:s3:::${appName}-${envName}-*/*`
+        `arn:aws:s3:::${appName}-${envName}-*/*`,
+        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*`,
+        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*`
       ]
     }));
 
