@@ -207,6 +207,7 @@ pipeline {
               --resolve-s3 \
               --force-upload \
               --no-fail-on-empty-changeset \
+              --role-arn arn:aws:iam::${env.AWS_ACCOUNT_ID}:role/${env.APP_NAME}-${env.ENV_NAME}-cfn-execution-role \
               --parameter-overrides \
                 AppName=${env.APP_NAME} \
                 EnvName=${env.ENV_NAME}
