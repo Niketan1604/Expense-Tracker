@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '3'))
+  }
+
   environment {
     APP_NAME       = 'expense-tracker'
     AWS_REGION     = 'ap-south-1'
@@ -87,12 +91,8 @@ pipeline {
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 5 — Lint
-    // ESLint checks code quality and catches common mistakes:
-    //   - unused variables
-    //   - missing return types
-    //   - unsafe any usage
-    //   - other TypeScript best practices
-    // Fails the pipeline if any error-level lint rules are violated.
+    // ESLint checks code quality and catches common mistakes.
+    // Fails pipeline if any error-level lint rules are violated.
     // ─────────────────────────────────────────────────────────────
     stage('Lint') {
       steps {
@@ -104,13 +104,8 @@ pipeline {
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 6 — Unit Tests
-    // Runs Jest test suite.
     // --passWithNoTests allows pipeline to pass while tests are
-    // still being written. Remove this flag once tests exist.
-    // --ci flag:
-    //   - disables interactive watch mode
-    //   - fails if snapshot tests are outdated
-    //   - produces machine-readable output
+    // still being written. Remove once tests exist.
     // ─────────────────────────────────────────────────────────────
     stage('Unit Tests') {
       steps {
@@ -122,10 +117,8 @@ pipeline {
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 7 — Security Audit
-    // npm audit scans all dependencies against the npm advisory
-    // database for known CVEs (security vulnerabilities).
-    // --audit-level=high means the pipeline only fails on HIGH
-    // or CRITICAL severity vulnerabilities, not low/moderate.
+    // Scans dependencies for known CVEs.
+    // Only fails on HIGH or CRITICAL severity vulnerabilities.
     // ─────────────────────────────────────────────────────────────
     stage('Security Audit') {
       steps {
@@ -138,9 +131,7 @@ pipeline {
     // ─────────────────────────────────────────────────────────────
     // STAGE 8 — SAM Validate
     // Validates template.yaml syntax and resource references.
-    // Catches missing properties, invalid resource types, and
-    // incorrect SAM transform syntax BEFORE building.
-    // --lint flag also checks for best practice warnings.
+    // --lint also checks for best practice warnings.
     // ─────────────────────────────────────────────────────────────
     stage('SAM Validate') {
       steps {
@@ -154,9 +145,8 @@ pipeline {
     // STAGE 9 — SAM Build
     // Compiles TypeScript Lambda handlers using esbuild.
     // --parallel builds all functions simultaneously.
-    // Output goes to .aws-sam/build/ — one folder per function.
-    // esbuild bundles each handler + its shared/ imports into
-    // a single JS file, keeping Lambda packages small.
+    // esbuild bundles each handler + shared/ imports into a
+    // single minified JS file per function.
     // ─────────────────────────────────────────────────────────────
     stage('SAM Build') {
       steps {
@@ -168,7 +158,7 @@ pipeline {
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 10 — Approval Gate (prod only)
-    // dev deploys automatically — no gate needed for dev.
+    // dev deploys automatically — no gate needed.
     // prod requires manual approval to prevent accidental deploys.
     // ─────────────────────────────────────────────────────────────
     stage('Approval') {
@@ -186,119 +176,49 @@ pipeline {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 11 — Read SSM Parameters
-    // Reads values written by CDK stacks into SSM.
-    // These are passed as --parameter-overrides to sam deploy
-    // so the SAM template can wire up:
-    //   - DynamoDB table name → Lambda env var
-    //   - Cognito pool ID + client ID → JWT authorizer
-    //   - CloudFront domain → CORS allowed origin
-    // ─────────────────────────────────────────────────────────────
-    stage('Read SSM Config') {
-      steps {
-        script {
-          def getParam = { String name ->
-            sh(
-              script: """
-                aws ssm get-parameter \
-                  --name "/${env.APP_NAME}/${env.ENV_NAME}/${name}" \
-                  --region ${env.AWS_REGION} \
-                  --query Parameter.Value \
-                  --output text
-              """,
-              returnStdout: true
-            ).trim()
-          }
-
-          env.TABLE_NAME          = getParam('database/main-table-name')
-          env.TABLE_ARN           = getParam('database/main-table-arn')
-          env.TABLE_GSI1_ARN      = getParam('database/main-table-gsi1-arn')
-          env.COGNITO_POOL_ID     = getParam('cognito/user-pool-id')
-          env.COGNITO_CLIENT_ID   = getParam('cognito/app-client-id')
-          env.COGNITO_ISSUER_URL  = getParam('cognito/issuer-url')
-          env.CLOUDFRONT_DOMAIN   = getParam('edge/cloudfront-domain')
-
-          echo "TableName:        ${env.TABLE_NAME}"
-          echo "CognitoPoolId:    ${env.COGNITO_POOL_ID}"
-          echo "CloudFrontDomain: ${env.CLOUDFRONT_DOMAIN}"
-        }
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // STAGE 12 — SAM Deploy
-    // Deploys Lambda functions + HTTP API Gateway to AWS.
-    // --config-env selects the correct [dev] or [prod] block
-    //   from samconfig.toml.
-    // --no-fail-on-empty-changeset prevents pipeline failure when
-    //   nothing has changed since the last deploy.
+    // STAGE 11 — SAM Deploy
+    //
+    // --stack-name        CloudFormation stack name
+    // --capabilities      Required for IAM role creation
+    // --force-upload      Always uploads all artifacts regardless
+    //                     of changes — ensures pipeline is source
+    //                     of truth, overrides any console changes
+    // --no-fail-on-empty-changeset
+    //                     Don't fail if nothing changed
+    // --parameter-overrides
+    //                     Only AppName + EnvName are declared as
+    //                     Parameters in template.yaml. Everything
+    //                     else is resolved via {{resolve:ssm:...}}
+    //                     directly in the template at deploy time.
+    //
+    // SSM export (api-endpoint) is handled automatically by the
+    // ApiEndpointParam resource in template.yaml — no extra stage
+    // needed here.
     // ─────────────────────────────────────────────────────────────
     stage('SAM Deploy') {
       steps {
         dir('backend') {
           sh """
             sam deploy \
-              --config-env ${env.ENV_NAME} \
+              --stack-name ${env.APP_NAME}-${env.ENV_NAME}-backend \
               --region ${env.AWS_REGION} \
+              --capabilities CAPABILITY_IAM \
+              --force-upload \
+              --no-fail-on-empty-changeset \
               --parameter-overrides \
                 AppName=${env.APP_NAME} \
-                EnvName=${env.ENV_NAME} \
-                TableName=${env.TABLE_NAME} \
-                TableArn=${env.TABLE_ARN} \
-                TableGsi1Arn=${env.TABLE_GSI1_ARN} \
-                CognitoUserPoolId=${env.COGNITO_POOL_ID} \
-                CognitoClientId=${env.COGNITO_CLIENT_ID} \
-                CognitoIssuerUrl=${env.COGNITO_ISSUER_URL} \
-                CloudFrontDomain=${env.CLOUDFRONT_DOMAIN} \
-                AwsRegion=${env.AWS_REGION} \
-              --no-fail-on-empty-changeset
+                EnvName=${env.ENV_NAME}
           """
         }
       }
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 13 — Write API Endpoint to SSM
-    // Reads the API endpoint from CloudFormation stack outputs
-    // and writes it to SSM so the frontend pipeline can read it
-    // and bake it into the Next.js build as NEXT_PUBLIC_API_ENDPOINT.
-    // ─────────────────────────────────────────────────────────────
-    stage('Export API Endpoint') {
-      steps {
-        script {
-          def stackName = "${env.APP_NAME}-${env.ENV_NAME}-backend"
-
-          def apiEndpoint = sh(
-            script: """
-              aws cloudformation describe-stacks \
-                --stack-name ${stackName} \
-                --region ${env.AWS_REGION} \
-                --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
-                --output text
-            """,
-            returnStdout: true
-          ).trim()
-
-          sh """
-            aws ssm put-parameter \
-              --name "/${env.APP_NAME}/${env.ENV_NAME}/backend/api-endpoint" \
-              --value "${apiEndpoint}" \
-              --type String \
-              --overwrite \
-              --region ${env.AWS_REGION}
-          """
-
-          echo "API endpoint written to SSM: ${apiEndpoint}"
-        }
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // STAGE 14 — Smoke Test
-    // Hits the /health endpoint to verify API Gateway + Lambda
-    // are actually responding after deployment.
-    // -f flag makes curl return a non-zero exit code on HTTP errors
-    // so the pipeline fails if the endpoint is not healthy.
+    // STAGE 12 — Smoke Test
+    // Reads API endpoint from SSM (written by ApiEndpointParam
+    // resource in template.yaml during sam deploy).
+    // Hits /health to verify API Gateway + Lambda are responding.
+    // -f flag makes curl fail with non-zero exit on HTTP errors.
     // ─────────────────────────────────────────────────────────────
     stage('Smoke Test') {
       steps {
@@ -308,12 +228,13 @@ pipeline {
               aws ssm get-parameter \
                 --name "/${env.APP_NAME}/${env.ENV_NAME}/backend/api-endpoint" \
                 --region ${env.AWS_REGION} \
-                --query Parameter.Value \
+                --query 'Parameter.Value' \
                 --output text
             """,
             returnStdout: true
           ).trim()
 
+          echo "Hitting: ${apiEndpoint}/health"
           sh "curl -f ${apiEndpoint}/health"
         }
       }
@@ -328,6 +249,7 @@ pipeline {
         env.AWS_SECRET_ACCESS_KEY = ''
         env.AWS_SESSION_TOKEN     = ''
       }
+      cleanWs()
     }
     success {
       echo "✓ Backend deploy to ${env.ENV_NAME} succeeded"

@@ -1,29 +1,275 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Expense Tracker — Backend (Lambda + API Gateway)
 
+# =========================================================
+# Parameters
+#
+# EnvName is passed by Jenkinsfile via --parameter-overrides
+# All SSM values are resolved at deploy time using
+# {{resolve:ssm:...}} — no SDK calls needed inside Lambda.
+# =========================================================
 Parameters:
   AppName:
     Type: String
     Default: expense-tracker
+
   EnvName:
     Type: String
     AllowedValues: [dev, prod]
 
+# =========================================================
+# Globals
+#
+# Applied to every Lambda function unless overridden.
+# Environment variables are resolved from SSM at deploy time
+# using !Sub + {{resolve:ssm:...}} pattern — EnvName is
+# substituted first by CloudFormation, then SSM is resolved.
+#
+# Note: Metadata.BuildMethod cannot be set in Globals —
+# SAM limitation. Each function defines its own Metadata
+# block with only EntryPoints differing per function.
+# =========================================================
 Globals:
   Function:
     Runtime: nodejs24.x
-    Architectures: [arm64]
-    Timeout: 15
-    MemorySize: 256
-    Tracing: Active
+    Architectures: [arm64]      # Graviton2 — cheaper + faster than x86
+    Timeout: 29                 # API Gateway HTTP API hard limit is 30s
+    MemorySize: 256             # good balance of cost vs cold start on arm64
+    Tracing: Active             # X-Ray — 100k traces/month free tier
+    CodeUri: ./
     Environment:
       Variables:
-        NODE_OPTIONS: '--enable-source-maps'
+        NODE_OPTIONS: "--enable-source-maps"
+        APP_NAME: !Ref AppName
+        ENV_NAME: !Ref EnvName
+        # Resolved from SSM at deploy time — zero latency at runtime
+        TABLE_NAME: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/database/table-name}}"
+        ISSUER_URL: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/issuer-url}}"
+        APP_CLIENT_ID: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/app-client-id}}"
 
+  Api:
+    TracingEnabled: true
+
+# =========================================================
+# Resources
+# =========================================================
 Resources:
-  # Placeholder — Lambda functions and HTTP API will be added here
-  # in the backend implementation sprint
 
-Outputs:
-  # API endpoint will be exported here after implementation
+  # ───────────────────────────────────────────────────────
+  # IAM — Lambda Execution Role
+  #
+  # Single role shared by all Lambda functions.
+  # Scoped strictly to this app's DynamoDB table only.
+  # CloudWatch Logs permissions added for Lambda to write logs.
+  # X-Ray permissions for tracing.
+  # ───────────────────────────────────────────────────────
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppName}-${EnvName}-lambda-execution-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:TransactWriteItems
+                Resource:
+                  - !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/database/table-arn}}"
+                  - !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/database/gsi1-arn}}"
+
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AppName}-${EnvName}-*"
+
+        - PolicyName: XRayAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"   # X-Ray does not support resource-level permissions
+
+  # ───────────────────────────────────────────────────────
+  # HTTP API (API Gateway v2)
+  #
+  # HTTP API is cheaper and faster than REST API.
+  # JWT authorizer validates Cognito tokens on every request
+  # except /health which is public (no auth required).
+  #
+  # CORS is configured here at the API level — no need to
+  # handle OPTIONS in Lambda handlers.
+  # ───────────────────────────────────────────────────────
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: !Sub "${AppName}-${EnvName}-api"
+      StageName: !Ref EnvName
+
+      # JWT Authorizer — validates Cognito access tokens
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/issuer-url}}"
+              audience:
+                - !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/app-client-id}}"
+
+      # CORS — handled at API Gateway level, not in Lambda
+      CorsConfiguration:
+        AllowOrigins:
+          - !Sub "https://{{resolve:ssm:/expense-tracker/${EnvName}/edge/cloudfront-domain}}"
+          - "http://localhost:3000"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+        AllowCredentials: false
+        MaxAge: 300
+
+  # ───────────────────────────────────────────────────────
+  # FOUNDATION APIs
+  # ───────────────────────────────────────────────────────
+
+  # ── GET /health ────────────────────────────────────────
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-health"
+      Handler: health/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "Health check — public, no auth"
+      Events:
+        GetHealth:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /health
+            Method: GET
+            Auth:
+              Authorizer: NONE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/health/index.ts
+
+  HealthFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-health"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  # ── GET /user/profile ──────────────────────────────────
+  GetUserProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-user-profile"
+      Handler: user/getUserProfile/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /user/profile — returns authenticated user profile"
+      Events:
+        GetUserProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /user/profile
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/user/getUserProfile/index.ts
+
+  GetUserProfileLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-user-profile"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  # ── PUT /user/profile ──────────────────────────────────
+  PutUserProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-put-user-profile"
+      Handler: user/putUserProfile/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "PUT /user/profile — create or update user profile"
+      Events:
+        PutUserProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /user/profile
+            Method: PUT
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/user/putUserProfile/index.ts
+
+  PutUserProfileLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-put-user-profile"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  # ───────────────────────────────────────────────────────
+  # SSM Export — API Endpoint
+  #
+  # Written automatically on every SAM deploy.
+  # Frontend reads this as NEXT_PUBLIC_API_URL.
+  # Jenkinsfile smoke test hits /health using this value.
+  # ───────────────────────────────────────────────────────
+  ApiEndpointParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AppName}/${EnvName}/backend/api-endpoint"
+      Type: String
+      Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvName}"
+      Description: !Sub "${AppName} ${EnvName} backend — api-endpoint"
+
+# =========================================================
+# Conditions
+# =========================================================
+Conditions:
+  IsProd: !Equals [!Ref EnvName, prod]
