@@ -98,7 +98,7 @@ pipeline {
     stage('Lint') {
       steps {
         dir('backend') {
-          sh 'npx eslint "src/**/*.ts" --max-warnings=0'
+          sh 'npx eslint src --max-warnings=0'
         }
       }
     }
