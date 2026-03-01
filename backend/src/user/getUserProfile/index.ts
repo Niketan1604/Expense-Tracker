@@ -48,7 +48,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         }
 
         // Step 4 — strip internal DynamoDB keys before returning
-        const { PK, SK, ...profile } = result.Item as UserProfile;
+        const { PK: _PK, SK: _SK, ...profile } = result.Item as UserProfile;
         logger.info('User profile fetched successfully', { userId });
         return response(profile);
 

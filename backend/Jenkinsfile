@@ -9,6 +9,7 @@ pipeline {
     APP_NAME       = 'expense-tracker'
     AWS_REGION     = 'ap-south-1'
     AWS_ACCOUNT_ID = credentials('aws-account-id')
+    NODE_OPTIONS   = '--max-old-space-size=2048'
   }
 
   stages {

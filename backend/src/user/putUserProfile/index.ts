@@ -87,7 +87,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         );
 
         // Step 5 — return saved profile, strip DynamoDB keys
-        const { PK, SK, ...profileData } = profile;
+        const { PK: _PK, SK: _SK, ...profileData } = profile;
         logger.info('User profile updated successfully', { userId });
         return response(profileData);
 
