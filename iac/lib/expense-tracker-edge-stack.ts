@@ -26,10 +26,53 @@ export class ExpenseTrackerEdgeStack extends Stack {
     // Jenkinsfile reads these params with --region us-east-1.
     // =========================================================
     const exportParam = (name: string, value: string) => {
+      // Write to us-east-1 (stack's region) — for IAC pipeline context reads
       new ssm.StringParameter(this, `SSMParam-${name}`, {
         parameterName: `/${appName}/${envName}/edge/${name}`,
         stringValue: value,
-        description: `${appName} ${envName} edge — ${name}`
+        description: `${appName} ${envName} edge — ${name}`,
+      });
+
+      // Also write to ap-south-1 — so backend + cognito stacks can resolve it
+      new cr.AwsCustomResource(this, `SSMParam-${name}-ApSouth1`, {
+        onCreate: {
+          service: 'SSM',
+          action: 'putParameter',
+          parameters: {
+            Name: `/${appName}/${envName}/edge/${name}`,
+            Value: value,
+            Type: 'String',
+            Overwrite: true
+          },
+          physicalResourceId: cr.PhysicalResourceId.of(`${appName}-${envName}-edge-${name}-ap-south-1`),
+          region: 'ap-south-1'
+        },
+        onUpdate: {
+          service: 'SSM',
+          action: 'putParameter',
+          parameters: {
+            Name: `/${appName}/${envName}/edge/${name}`,
+            Value: value,
+            Type: 'String',
+            Overwrite: true
+          },
+          physicalResourceId: cr.PhysicalResourceId.of(`${appName}-${envName}-edge-${name}-ap-south-1`),
+          region: 'ap-south-1'
+        },
+        onDelete: {
+          service: 'SSM',
+          action: 'deleteParameter',
+          parameters: { Name: `/${appName}/${envName}/edge/${name}` },
+          region: 'ap-south-1'
+        },
+        policy: cr.AwsCustomResourcePolicy.fromStatements([
+          new iam.PolicyStatement({
+            actions: ['ssm:PutParameter', 'ssm:DeleteParameter'],
+            resources: [
+              `arn:aws:ssm:ap-south-1:${this.account}:parameter/${appName}/${envName}/edge/*`
+            ]
+          })
+        ])
       });
     };
 
