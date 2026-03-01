@@ -334,14 +334,22 @@ export class ExpenseTrackerIamStack extends Stack {
       actions: [
         's3:CreateBucket',
         's3:GetBucketLocation',
+        's3:GetBucketPolicy',
         's3:PutBucketVersioning',
         's3:PutBucketPolicy',
         's3:PutLifecycleConfiguration',
         's3:GetEncryptionConfiguration',
-        's3:PutEncryptionConfiguration'
+        's3:PutEncryptionConfiguration',
+        's3:PutBucketTagging',
+        's3:TagResource',
+        's3:GetBucketAcl',
+        's3:PutBucketAcl',
+        's3:PutBucketPublicAccessBlock',
+        's3:GetBucketPublicAccessBlock'
       ],
       resources: [
-        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*`
+        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*`,
+        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*`
       ]
     }));
 
