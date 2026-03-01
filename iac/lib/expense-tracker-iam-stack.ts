@@ -36,8 +36,6 @@ export class ExpenseTrackerIamStack extends Stack {
       statements: [
 
         // CloudFormation — SAM transform expansion
-        // cfn-execution-role calls CreateChangeSet on the SAM transform
-        // to convert AWS::Serverless::* into native CF resources
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
           actions: [
@@ -53,7 +51,7 @@ export class ExpenseTrackerIamStack extends Stack {
           ]
         }),
 
-        // S3 — app buckets + CDK bootstrap bucket (for asset reads)
+        // S3 — app buckets + CDK bootstrap bucket + SAM artifact bucket
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
           actions: ['s3:*'],
@@ -79,6 +77,7 @@ export class ExpenseTrackerIamStack extends Stack {
         }),
 
         // Lambda — app functions only
+        // Using lambda:* to avoid enumerating SAM-internal actions
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
           actions: ['lambda:*'],
@@ -89,13 +88,14 @@ export class ExpenseTrackerIamStack extends Stack {
           ]
         }),
 
-        // API Gateway — HTTP API (v2) only
+        // API Gateway — wildcard covers all v2 sub-resources:
+        // /apis, /apis/*, /apis/*/stages/*, /apis/*/routes/*,
+        // /apis/*/integrations/*, /apis/*/authorizers/*, /tags/*
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
           actions: ['apigateway:*'],
           resources: [
-            `arn:aws:apigateway:${this.region}::/apis`,
-            `arn:aws:apigateway:${this.region}::/apis/*`
+            `arn:aws:apigateway:${this.region}::*`
           ]
         }),
 
@@ -204,14 +204,6 @@ export class ExpenseTrackerIamStack extends Stack {
     // ONLY orchestration permissions — Jenkins calls AWS APIs
     // to trigger deployments. Actual resource creation is done
     // by cfn-execution-role, not jenkins-deploy-role.
-    //
-    // Jenkins needs:
-    //   - SSM reads (CDK bootstrap version + app params)
-    //   - S3 access (CDK bootstrap buckets + SAM artifact bucket)
-    //   - CloudFormation (create/update/describe stacks)
-    //   - IAM PassRole (hand off cfn-execution-role to CloudFormation)
-    //   - S3 sync (frontend bucket — direct Jenkins action)
-    //   - CloudFront invalidation (post frontend deploy)
     // =========================================================
     const jenkinsDeployRole = new iam.Role(this, 'JenkinsDeployRole', {
       roleName: `${appName}-${envName}-jenkins-deploy-role`,
@@ -219,7 +211,7 @@ export class ExpenseTrackerIamStack extends Stack {
       maxSessionDuration: Duration.hours(2)
     });
 
-    // CDK bootstrap version check (both regions — ap-south-1 + us-east-1 for edge stack)
+    // CDK bootstrap version check (both regions)
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['ssm:GetParameter'],
@@ -229,7 +221,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // App SSM params — read for pipeline config, read edge params from us-east-1
+    // App SSM params — read for pipeline config (both regions for edge params)
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -243,7 +235,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // CDK bootstrap S3 buckets — upload assets during cdk deploy (both regions)
+    // CDK bootstrap S3 buckets (both regions)
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -305,7 +297,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // CloudFront invalidation — Jenkins triggers this after frontend S3 sync
+    // CloudFront invalidation — Jenkins triggers after frontend S3 sync
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['cloudfront:CreateInvalidation'],
@@ -315,7 +307,6 @@ export class ExpenseTrackerIamStack extends Stack {
     }));
 
     // CloudFormation — Jenkins creates/updates stacks and monitors progress
-    // Does NOT include resource-level permissions — those belong to cfn-execution-role
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -338,27 +329,21 @@ export class ExpenseTrackerIamStack extends Stack {
         'cloudformation:ListChangeSets'
       ],
       resources: [
-        // App stacks (both regions)
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/${appName}-${envName}-*/*`,
         `arn:aws:cloudformation:us-east-1:${this.account}:stack/${appName}-${envName}-*/*`,
-        // CDKToolkit (both regions)
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`,
         `arn:aws:cloudformation:us-east-1:${this.account}:stack/CDKToolkit/*`,
-        // SAM managed stack
         `arn:aws:cloudformation:${this.region}:${this.account}:stack/aws-sam-cli-managed-default/*`,
-        // SAM transform — Jenkins triggers CreateChangeSet which references this
         `arn:aws:cloudformation:${this.region}:aws:transform/Serverless-2016-10-31`
       ]
     }));
 
     // IAM PassRole — Jenkins passes cfn-execution-role to CloudFormation
-    // CloudFormation then uses cfn-execution-role to create actual resources
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['iam:PassRole'],
       resources: [
         `arn:aws:iam::${this.account}:role/${appName}-${envName}-cfn-execution-role`,
-        // CDK bootstrap cfn-exec roles (both regions)
         `arn:aws:iam::${this.account}:role/cdk-hnb659fds-cfn-exec-role-${this.account}-${this.region}`,
         `arn:aws:iam::${this.account}:role/cdk-hnb659fds-cfn-exec-role-${this.account}-us-east-1`
       ],
@@ -374,9 +359,6 @@ export class ExpenseTrackerIamStack extends Stack {
     //
     // Assumed BY CloudFormation to create actual AWS resources.
     // Permission boundary enforces the hard ceiling.
-    //
-    // Needs everything required to create/update/delete the
-    // actual resources defined in CDK + SAM stacks.
     // =========================================================
     const cfnExecutionRole = new iam.Role(this, 'CfnExecutionRole', {
       roleName: `${appName}-${envName}-cfn-execution-role`,
@@ -384,8 +366,7 @@ export class ExpenseTrackerIamStack extends Stack {
       permissionsBoundary: permissionBoundary
     });
 
-    // SAM transform — CloudFormation expands AWS::Serverless::* resources
-    // by calling CreateChangeSet on the Serverless-2016-10-31 transform
+    // CloudFormation — SAM transform expansion
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -401,15 +382,13 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // S3 — app buckets + CDK bootstrap bucket reads
+    // S3 — app buckets + CDK bootstrap reads + SAM artifact bucket reads
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['s3:*'],
       resources: [
         `arn:aws:s3:::${appName}-${envName}-*`,
-        `arn:aws:s3:::${appName}-${envName}-*/*`,
-        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*`,
-        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*`
+        `arn:aws:s3:::${appName}-${envName}-*/*`
       ]
     }));
 
@@ -417,11 +396,14 @@ export class ExpenseTrackerIamStack extends Stack {
       effect: iam.Effect.ALLOW,
       actions: ['s3:GetObject', 's3:GetObjectVersion'],
       resources: [
-        `arn:aws:s3:::cdk-hnb659fds-assets-${this.account}-${this.region}/*`
+        // CDK bootstrap bucket
+        `arn:aws:s3:::cdk-hnb659fds-assets-${this.account}-${this.region}/*`,
+        // SAM artifact bucket — CloudFormation reads Lambda zips from here
+        `arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-*/*`
       ]
     }));
 
-    // DynamoDB — create/update/delete app tables
+    // DynamoDB — app tables only
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -443,34 +425,10 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // Lambda — create/update/delete app functions
+    // Lambda — using lambda:* to cover all SAM-internal actions
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: [
-        'lambda:CreateFunction',
-        'lambda:DeleteFunction',
-        'lambda:UpdateFunctionCode',
-        'lambda:UpdateFunctionConfiguration',
-        'lambda:GetFunction',
-        'lambda:GetFunctionConfiguration',
-        'lambda:ListVersionsByFunction',
-        'lambda:PublishVersion',
-        'lambda:CreateAlias',
-        'lambda:DeleteAlias',
-        'lambda:UpdateAlias',
-        'lambda:GetAlias',
-        'lambda:AddPermission',
-        'lambda:RemovePermission',
-        'lambda:GetPolicy',
-        'lambda:TagResource',
-        'lambda:UntagResource',
-        'lambda:ListTags',
-        'lambda:PutFunctionConcurrency',
-        'lambda:DeleteFunctionConcurrency',
-        'lambda:PutFunctionEventInvokeConfig',
-        'lambda:UpdateFunctionEventInvokeConfig',
-        'lambda:DeleteFunctionEventInvokeConfig'
-      ],
+      actions: ['lambda:*'],
       resources: [
         `arn:aws:lambda:${this.region}:${this.account}:function:${appName}-${envName}-*`,
         `arn:aws:lambda:${this.region}:${this.account}:layer:${appName}-${envName}-*`,
@@ -478,23 +436,18 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // API Gateway v2 (HTTP API) — create/update/delete APIs + stages + routes + integrations
+    // API Gateway v2 — wildcard covers all sub-resources:
+    // /apis, /apis/*, /apis/*/stages/*, /apis/*/routes/*,
+    // /apis/*/integrations/*, /apis/*/authorizers/*, /tags/*
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: [
-        'apigateway:POST',
-        'apigateway:PUT',
-        'apigateway:PATCH',
-        'apigateway:DELETE',
-        'apigateway:GET'
-      ],
+      actions: ['apigateway:*'],
       resources: [
-        `arn:aws:apigateway:${this.region}::/apis`,
-        `arn:aws:apigateway:${this.region}::/apis/*`
+        `arn:aws:apigateway:${this.region}::*`
       ]
     }));
 
-    // CloudFront — create/update/delete distributions + OAC
+    // CloudFront — distributions + OAC
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -518,7 +471,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // ACM — certificates for CloudFront + regional APIs
+    // ACM — certificates
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -535,7 +488,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // Cognito — create/update/delete user pools + clients + domains
+    // Cognito — user pools + clients + domains
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -559,7 +512,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // CloudWatch Logs — create/delete log groups for Lambda + API Gateway
+    // CloudWatch Logs — Lambda + API Gateway log groups
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -580,7 +533,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // SSM — write/read/delete app params (API endpoint, table names, etc.)
+    // SSM — app params only
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -596,7 +549,7 @@ export class ExpenseTrackerIamStack extends Stack {
       ]
     }));
 
-    // IAM — create/manage app roles (e.g. LambdaExecutionRole in SAM stack)
+    // IAM — create/manage app roles (LambdaExecutionRole etc.)
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
