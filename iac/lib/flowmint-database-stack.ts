@@ -29,18 +29,18 @@ export class FlowmintDatabaseStack extends Stack {
     //
     // Key structure per entity:
     //
-    // Entity          PK                    SK
-    // ─────────────────────────────────────────────────────────
-    // User Profile    USER#{userId}         PROFILE
-    // Category        USER#{userId}         CATEGORY#{categoryId}
-    // Budget          USER#{userId}         BUDGET#{yyyy}#{mm}#{categoryId}
-    // Expense         USER#{userId}         EXPENSE#{yyyy-mm-dd}#{expenseId}
-    // Monthly Summary USER#{userId}         SUMMARY#{yyyy}#{mm}#{categoryId}
-    // Monthly Total   USER#{userId}         SUMMARY#{yyyy}#{mm}#ALL
+    // Entity           PK                    SK
+    // ──────────────────────────────────────────────────────────
+    // UserProfile      USER#{userId}         PROFILE
+    // Category         USER#{userId}         CATEGORY#{categoryId}
+    // Budget           USER#{userId}         BUDGET#{yyyy}#{mm}#{categoryId}
+    // Transaction      USER#{userId}         TXN#{yyyy-mm-dd}#{txnId}
+    // MonthlySummary   USER#{userId}         SUMMARY#{yyyy}#{mm}#{categoryId}
+    // MonthlyTotal     USER#{userId}         SUMMARY#{yyyy}#{mm}#ALL
     //
     // Aggregation strategy:
-    //   TransactWriteItems on every expense write — atomically
-    //   updates SUMMARY and SUMMARY#ALL in the same transaction.
+    //   TransactWriteItems on every transaction write — atomically
+    //   updates MonthlySummary and MonthlyTotal in the same transaction.
     //   No streams/async aggregation needed.
     //
     // Stream is kept enabled for future use (notifications etc.)
@@ -80,14 +80,18 @@ export class FlowmintDatabaseStack extends Stack {
     });
 
     // =========================================================
-    // GSI1 — Category-scoped expense queries
+    // GSI1 — Transactions by category
     //
     // GSI1PK: USER#{userId}#CAT#{categoryId}
-    // GSI1SK: EXPENSE#{yyyy-mm-dd}#{expenseId}
+    // GSI1SK: TXN#{yyyy-mm-dd}#{txnId}
     //
     // Enables:
-    //   - List all expenses for a user+category (date sorted)
-    //   - List expenses for a user+category in a date range
+    //   - List all transactions for a user+category (date sorted)
+    //   - List transactions for a user+category in a date range
+    //   - Category breakdown for analytics
+    //
+    // Only Transaction items carry GSI1PK/GSI1SK — all other
+    // entity types are invisible to this index automatically.
     //
     // Projection ALL — avoids a second GetItem after GSI query
     // =========================================================
@@ -99,6 +103,36 @@ export class FlowmintDatabaseStack extends Stack {
       },
       sortKey: {
         name: 'GSI1SK',
+        type: dynamodb.AttributeType.STRING
+      },
+      projectionType: dynamodb.ProjectionType.ALL
+    });
+
+    // =========================================================
+    // GSI2 — Transactions by type (CREDIT / DEBIT)
+    //
+    // GSI2PK: USER#{userId}#TYPE#{CREDIT|DEBIT}
+    // GSI2SK: TXN#{yyyy-mm-dd}#{txnId}  (reuses SK — no extra attribute)
+    //
+    // Enables:
+    //   - List only CREDIT transactions for a user (date sorted)
+    //   - List only DEBIT transactions for a user (date sorted)
+    //   - Type-filtered views in the frontend transaction feed
+    //   - Top income sources (CREDIT) / top spending (DEBIT)
+    //
+    // Sparse index — only Transaction items carry GSI2PK.
+    // UserProfile, Category, Budget, Summary items are invisible.
+    //
+    // Projection ALL — avoids a second GetItem after GSI query
+    // =========================================================
+    this.table.addGlobalSecondaryIndex({
+      indexName: 'GSI2',
+      partitionKey: {
+        name: 'GSI2PK',
+        type: dynamodb.AttributeType.STRING
+      },
+      sortKey: {
+        name: 'SK',
         type: dynamodb.AttributeType.STRING
       },
       projectionType: dynamodb.ProjectionType.ALL
@@ -117,6 +151,7 @@ export class FlowmintDatabaseStack extends Stack {
     exportParam('table-name', this.table.tableName);
     exportParam('table-arn', this.table.tableArn);
     exportParam('gsi1-arn', `${this.table.tableArn}/index/GSI1`);
+    exportParam('gsi2-arn', `${this.table.tableArn}/index/GSI2`);
     exportParam('stream-arn', this.table.tableStreamArn ?? 'stream-not-enabled');
   }
 }
