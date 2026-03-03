@@ -6,7 +6,7 @@ pipeline {
   }
 
   environment {
-    APP_NAME       = 'expense-tracker'
+    APP_NAME       = 'flowmint'
     AWS_REGION     = 'ap-south-1'
     AWS_ACCOUNT_ID = credentials('aws-account-id')
     NODE_OPTIONS   = '--max-old-space-size=2048'
@@ -23,7 +23,7 @@ pipeline {
           $class: 'GitSCM',
           branches: [[name: "*/${env.BRANCH_NAME}"]],
           userRemoteConfigs: [[
-            url: 'git@github.com:Niketan1604/Expense-Tracker.git',
+            url: 'git@github.com:Niketan1604/FlowMint.git',
             credentialsId: 'github-ssh-key'
           ]]
         ])

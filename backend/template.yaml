@@ -12,7 +12,7 @@ Description: Expense Tracker — Backend (Lambda + API Gateway)
 Parameters:
   AppName:
     Type: String
-    Default: expense-tracker
+    Default: flowmint
 
   EnvName:
     Type: String
@@ -44,9 +44,9 @@ Globals:
         APP_NAME: !Ref AppName
         ENV_NAME: !Ref EnvName
         # Resolved from SSM at deploy time — zero latency at runtime
-        TABLE_NAME: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/database/table-name}}"
-        ISSUER_URL: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/issuer-url}}"
-        APP_CLIENT_ID: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/app-client-id}}"
+        TABLE_NAME: !Sub "{{resolve:ssm:/flowmint/${EnvName}/database/table-name}}"
+        ISSUER_URL: !Sub "{{resolve:ssm:/flowmint/${EnvName}/cognito/issuer-url}}"
+        APP_CLIENT_ID: !Sub "{{resolve:ssm:/flowmint/${EnvName}/cognito/app-client-id}}"
 
   Api:
     TracingEnabled: true
@@ -89,8 +89,8 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:TransactWriteItems
                 Resource:
-                  - !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/database/table-arn}}"
-                  - !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/database/gsi1-arn}}"
+                  - !Sub "{{resolve:ssm:/flowmint/${EnvName}/database/table-arn}}"
+                  - !Sub "{{resolve:ssm:/flowmint/${EnvName}/database/gsi1-arn}}"
 
         - PolicyName: CloudWatchLogs
           PolicyDocument:
@@ -136,14 +136,14 @@ Resources:
           CognitoAuthorizer:
             IdentitySource: "$request.header.Authorization"
             JwtConfiguration:
-              issuer: !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/issuer-url}}"
+              issuer: !Sub "{{resolve:ssm:/flowmint/${EnvName}/cognito/issuer-url}}"
               audience:
-                - !Sub "{{resolve:ssm:/expense-tracker/${EnvName}/cognito/app-client-id}}"
+                - !Sub "{{resolve:ssm:/flowmint/${EnvName}/cognito/app-client-id}}"
 
       # CORS — handled at API Gateway level, not in Lambda
       CorsConfiguration:
         AllowOrigins:
-          - !Sub "https://{{resolve:ssm:/expense-tracker/${EnvName}/edge/cloudfront-domain}}"
+          - !Sub "https://{{resolve:ssm:/flowmint/${EnvName}/edge/cloudfront-domain}}"
           - "http://localhost:3000"
         AllowMethods:
           - GET
