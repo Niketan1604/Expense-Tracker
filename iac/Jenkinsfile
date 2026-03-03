@@ -92,23 +92,23 @@ pipeline {
     //                    Cognito needs it for callbackUrls/logoutUrls.
     //                    Must be read before synth, not at deploy time.
     // ─────────────────────────────────────────────────────────────
-    // stage('Read SSM Config') {
-    //   steps {
-    //     script {
-    //       env.CLOUDFRONT_DOMAIN = sh(
-    //         script: """
-    //           aws ssm get-parameter \
-    //             --name /${env.APP_NAME}/${env.ENV_NAME}/edge/cloudfront-domain \
-    //             --region us-east-1 \
-    //             --query 'Parameter.Value' \
-    //             --output text
-    //         """,
-    //         returnStdout: true
-    //       ).trim()
-    //       echo "CloudFront Domain: ${env.CLOUDFRONT_DOMAIN}"
-    //     }
-    //   }
-    // }
+    stage('Read SSM Config') {
+      steps {
+        script {
+          env.CLOUDFRONT_DOMAIN = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/edge/cloudfront-domain \
+                --region us-east-1 \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+          echo "CloudFront Domain: ${env.CLOUDFRONT_DOMAIN}"
+        }
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 5 — CDK Synth
@@ -216,17 +216,17 @@ pipeline {
     // SAM backend reads these to configure the JWT authorizer.
     // Uses pre-built cdk.out — no re-synthesis.
     // ─────────────────────────────────────────────────────────────
-    // stage('Deploy: Cognito') {
-    //   steps {
-    //     dir('iac') {
-    //       sh """
-    //         npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
-    //           --app cdk.out \
-    //           --require-approval never
-    //       """
-    //     }
-    //   }
-    // }
+    stage('Deploy: Cognito') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
+              --app cdk.out \
+              --require-approval never
+          """
+        }
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 10 — Deploy Frontend Stack (S3)

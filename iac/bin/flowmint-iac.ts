@@ -9,13 +9,13 @@ const app = new App();
 
 const appName = 'flowmint';
 const envName = app.node.tryGetContext('env') || 'dev';
-// const cloudfrontDomain = app.node.tryGetContext('cloudfrontDomain');
-// if (!cloudfrontDomain) {
-//   throw new Error(
-//     'Missing required context: cloudfrontDomain. ' +
-//     'Pass it via: --context cloudfrontDomain=<value>. '
-//   );
-// }
+const cloudfrontDomain = app.node.tryGetContext('cloudfrontDomain');
+if (!cloudfrontDomain) {
+  throw new Error(
+    'Missing required context: cloudfrontDomain. ' +
+    'Pass it via: --context cloudfrontDomain=<value>. '
+  );
+}
 
 const iamStack = new FlowmintIamStack(app, `${appName}-${envName}-iam`, {
   appName,
@@ -60,16 +60,16 @@ const edgeStack = new FlowmintEdgeStack(app, `${appName}-${envName}-edge`, {
 });
 edgeStack.addDependency(frontendStack);
 
-// const cognitoStack = new FlowmintCognitoStack(app, `${appName}-${envName}-cognito`, {
-//   appName,
-//   envName,
-//   cloudfrontDomain,
-//   env: {
-//     account: process.env.CDK_DEFAULT_ACCOUNT,
-//     region: process.env.CDK_DEFAULT_REGION
-//   }
-// });
-// cognitoStack.addDependency(iamStack);
-// cognitoStack.addDependency(edgeStack);
+const cognitoStack = new FlowmintCognitoStack(app, `${appName}-${envName}-cognito`, {
+  appName,
+  envName,
+  cloudfrontDomain,
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION
+  }
+});
+cognitoStack.addDependency(iamStack);
+cognitoStack.addDependency(edgeStack);
 
 app.synth();

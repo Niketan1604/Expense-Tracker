@@ -112,7 +112,7 @@ export class FlowmintCognitoStack extends Stack {
         const userPoolDomain = new cognito.UserPoolDomain(this, 'UserPoolDomain', {
             userPool,
             cognitoDomain: {
-                domainPrefix: `${appName}-${envName}`, // Replace with your desired domain prefix
+                domainPrefix: `${appName}-${envName}`,
             },
         });
 
