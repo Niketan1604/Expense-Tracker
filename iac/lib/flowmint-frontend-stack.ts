@@ -8,7 +8,7 @@ interface FrontendStackProps extends StackProps {
   envName: string;
 }
 
-export class ExpenseTrackerFrontendStack extends Stack {
+export class FlowmintFrontendStack extends Stack {
   // Exposed so edge stack can reference the bucket directly
   public readonly bucket: s3.Bucket;
   public readonly bucketName: string;

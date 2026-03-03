@@ -10,12 +10,12 @@ import * as cr from 'aws-cdk-lib/custom-resources';
 interface EdgeStackProps extends StackProps {
   appName: string;
   envName: string;
-  // Passed from frontend stack via bin/expense-tracker-iac.ts
+  // Passed from frontend stack via bin/flowmint-iac.ts
   bucketName: string;
   bucketRegionalDomainName: string;
 }
 
-export class ExpenseTrackerEdgeStack extends Stack {
+export class FlowmintEdgeStack extends Stack {
   constructor(scope: Construct, id: string, props: EdgeStackProps) {
     super(scope, id, props);
 

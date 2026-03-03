@@ -8,7 +8,7 @@ interface IamStackProps extends StackProps {
   envName: string;
 }
 
-export class ExpenseTrackerIamStack extends Stack {
+export class FlowmintIamStack extends Stack {
 
   constructor(scope: Construct, id: string, props: IamStackProps) {
     super(scope, id, props);

@@ -8,7 +8,7 @@ interface DatabaseStackProps extends StackProps {
   envName: string;
 }
 
-export class ExpenseTrackerDatabaseStack extends Stack {
+export class FlowmintDatabaseStack extends Stack {
   public readonly table: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {

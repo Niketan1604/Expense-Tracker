@@ -9,7 +9,7 @@ interface CognitoStackProps extends StackProps {
     cloudfrontDomain: string;
 }
 
-export class ExpenseTrackerCognitoStack extends Stack {
+export class FlowmintCognitoStack extends Stack {
     constructor(scope: Construct, id: string, props: CognitoStackProps) {
         super(scope, id, props);
         const { appName, envName, cloudfrontDomain } = props;

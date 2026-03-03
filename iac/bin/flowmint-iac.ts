@@ -1,13 +1,13 @@
 import { App } from 'aws-cdk-lib';
-import { ExpenseTrackerIamStack } from '../lib/expense-tracker-iam-stack';
-import { ExpenseTrackerDatabaseStack } from '../lib/expense-tracker-database-stack';
-import { ExpenseTrackerCognitoStack } from '../lib/expense-tracker-cognito-stack';
-import { ExpenseTrackerEdgeStack } from '../lib/expense-tracker-edge-stack';
-import { ExpenseTrackerFrontendStack } from '../lib/expense-tracker-frontend-stack';
+import { FlowmintIamStack } from '../lib/flowmint-iam-stack';
+import { FlowmintDatabaseStack } from '../lib/flowmint-database-stack';
+import { FlowmintCognitoStack } from '../lib/flowmint-cognito-stack';
+import { FlowmintEdgeStack } from '../lib/flowmint-edge-stack';
+import { FlowmintFrontendStack } from '../lib/flowmint-frontend-stack';
 
 const app = new App();
 
-const appName = 'expense-tracker';
+const appName = 'flowmint';
 const envName = app.node.tryGetContext('env') || 'dev';
 const cloudfrontDomain = app.node.tryGetContext('cloudfrontDomain');
 if (!cloudfrontDomain) {
@@ -17,7 +17,7 @@ if (!cloudfrontDomain) {
   );
 }
 
-const iamStack = new ExpenseTrackerIamStack(app, `${appName}-${envName}-iam`, {
+const iamStack = new FlowmintIamStack(app, `${appName}-${envName}-iam`, {
   appName,
   envName,
   env: {
@@ -26,7 +26,7 @@ const iamStack = new ExpenseTrackerIamStack(app, `${appName}-${envName}-iam`, {
   }
 });
 
-const databaseStack = new ExpenseTrackerDatabaseStack(app, `${appName}-${envName}-database`, {
+const databaseStack = new FlowmintDatabaseStack(app, `${appName}-${envName}-database`, {
   appName,
   envName,
   env: {
@@ -36,7 +36,7 @@ const databaseStack = new ExpenseTrackerDatabaseStack(app, `${appName}-${envName
 });
 databaseStack.addDependency(iamStack);
 
-const frontendStack = new ExpenseTrackerFrontendStack(app, `${appName}-${envName}-frontend`, {
+const frontendStack = new FlowmintFrontendStack(app, `${appName}-${envName}-frontend`, {
   appName,
   envName,
   env: {
@@ -47,7 +47,7 @@ const frontendStack = new ExpenseTrackerFrontendStack(app, `${appName}-${envName
 });
 frontendStack.addDependency(iamStack);
 
-const edgeStack = new ExpenseTrackerEdgeStack(app, `${appName}-${envName}-edge`, {
+const edgeStack = new FlowmintEdgeStack(app, `${appName}-${envName}-edge`, {
   appName,
   envName,
   env: {
@@ -60,16 +60,16 @@ const edgeStack = new ExpenseTrackerEdgeStack(app, `${appName}-${envName}-edge`,
 });
 edgeStack.addDependency(frontendStack);
 
-const cognitoStack = new ExpenseTrackerCognitoStack(app, `${appName}-${envName}-cognito`, {
-  appName,
-  envName,
-  cloudfrontDomain,
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION
-  }
-});
-cognitoStack.addDependency(iamStack);
-cognitoStack.addDependency(edgeStack);
+// const cognitoStack = new FlowmintCognitoStack(app, `${appName}-${envName}-cognito`, {
+//   appName,
+//   envName,
+//   cloudfrontDomain,
+//   env: {
+//     account: process.env.CDK_DEFAULT_ACCOUNT,
+//     region: process.env.CDK_DEFAULT_REGION
+//   }
+// });
+// cognitoStack.addDependency(iamStack);
+// cognitoStack.addDependency(edgeStack);
 
 app.synth();

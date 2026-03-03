@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/expense-tracker-iac.ts",
+  "app": "npx ts-node --prefer-ts-exts bin/flowmint-iac.ts",
   "watch": {
     "include": [
       "**"

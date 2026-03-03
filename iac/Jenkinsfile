@@ -6,7 +6,7 @@ pipeline {
   }
 
   environment {
-    APP_NAME       = 'expense-tracker'
+    APP_NAME       = 'flowmint'
     AWS_REGION     = 'ap-south-1'
     AWS_ACCOUNT_ID = credentials('aws-account-id')
     NODE_OPTIONS   = '--max-old-space-size=2048'
@@ -24,7 +24,7 @@ pipeline {
           $class: 'GitSCM',
           branches: [[name: "*/${env.BRANCH_NAME}"]],
           userRemoteConfigs: [[
-            url: 'git@github.com:Niketan1604/Expense-Tracker.git',
+            url: 'git@github.com:Niketan1604/FlowMint.git',
             credentialsId: 'github-ssh-key'
           ]]
         ])
@@ -92,23 +92,23 @@ pipeline {
     //                    Cognito needs it for callbackUrls/logoutUrls.
     //                    Must be read before synth, not at deploy time.
     // ─────────────────────────────────────────────────────────────
-    stage('Read SSM Config') {
-      steps {
-        script {
-          env.CLOUDFRONT_DOMAIN = sh(
-            script: """
-              aws ssm get-parameter \
-                --name /${env.APP_NAME}/${env.ENV_NAME}/edge/cloudfront-domain \
-                --region us-east-1 \
-                --query 'Parameter.Value' \
-                --output text
-            """,
-            returnStdout: true
-          ).trim()
-          echo "CloudFront Domain: ${env.CLOUDFRONT_DOMAIN}"
-        }
-      }
-    }
+    // stage('Read SSM Config') {
+    //   steps {
+    //     script {
+    //       env.CLOUDFRONT_DOMAIN = sh(
+    //         script: """
+    //           aws ssm get-parameter \
+    //             --name /${env.APP_NAME}/${env.ENV_NAME}/edge/cloudfront-domain \
+    //             --region us-east-1 \
+    //             --query 'Parameter.Value' \
+    //             --output text
+    //         """,
+    //         returnStdout: true
+    //       ).trim()
+    //       echo "CloudFront Domain: ${env.CLOUDFRONT_DOMAIN}"
+    //     }
+    //   }
+    // }
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 5 — CDK Synth
@@ -216,17 +216,17 @@ pipeline {
     // SAM backend reads these to configure the JWT authorizer.
     // Uses pre-built cdk.out — no re-synthesis.
     // ─────────────────────────────────────────────────────────────
-    stage('Deploy: Cognito') {
-      steps {
-        dir('iac') {
-          sh """
-            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
-              --app cdk.out \
-              --require-approval never
-          """
-        }
-      }
-    }
+    // stage('Deploy: Cognito') {
+    //   steps {
+    //     dir('iac') {
+    //       sh """
+    //         npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-cognito \
+    //           --app cdk.out \
+    //           --require-approval never
+    //       """
+    //     }
+    //   }
+    // }
 
     // ─────────────────────────────────────────────────────────────
     // STAGE 10 — Deploy Frontend Stack (S3)
@@ -278,7 +278,7 @@ pipeline {
           def domain = sh(
             script: """
               aws ssm get-parameter \
-                --name /expense-tracker/${env.ENV_NAME}/edge/cloudfront-domain \
+                --name /flowmint/${env.ENV_NAME}/edge/cloudfront-domain \
                 --region us-east-1 \
                 --query 'Parameter.Value' \
                 --output text
