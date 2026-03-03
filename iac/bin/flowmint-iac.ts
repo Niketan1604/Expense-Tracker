@@ -9,13 +9,13 @@ const app = new App();
 
 const appName = 'flowmint';
 const envName = app.node.tryGetContext('env') || 'dev';
-const cloudfrontDomain = app.node.tryGetContext('cloudfrontDomain');
-if (!cloudfrontDomain) {
-  throw new Error(
-    'Missing required context: cloudfrontDomain. ' +
-    'Pass it via: --context cloudfrontDomain=<value>. '
-  );
-}
+// const cloudfrontDomain = app.node.tryGetContext('cloudfrontDomain');
+// if (!cloudfrontDomain) {
+//   throw new Error(
+//     'Missing required context: cloudfrontDomain. ' +
+//     'Pass it via: --context cloudfrontDomain=<value>. '
+//   );
+// }
 
 const iamStack = new FlowmintIamStack(app, `${appName}-${envName}-iam`, {
   appName,
