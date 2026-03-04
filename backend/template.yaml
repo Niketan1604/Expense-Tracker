@@ -87,10 +87,12 @@ Resources:
                   - dynamodb:UpdateItem
                   - dynamodb:DeleteItem
                   - dynamodb:Query
+                  - dynamodb:BatchGetItem
                   - dynamodb:TransactWriteItems
                 Resource:
                   - !Sub "{{resolve:ssm:/flowmint/${EnvName}/database/table-arn}}"
                   - !Sub "{{resolve:ssm:/flowmint/${EnvName}/database/gsi1-arn}}"
+                  - !Sub "{{resolve:ssm:/flowmint/${EnvName}/database/gsi2-arn}}"
 
         - PolicyName: CloudWatchLogs
           PolicyDocument:
@@ -253,6 +255,150 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-put-user-profile"
       RetentionInDays: !If [IsProd, 30, 7]
 
+  CreateTransactionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-create-transaction"
+      Handler: transaction/createTransaction/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "POST /transactions — atomic create + summary update"
+      Events:
+        CreateTransaction:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /transactions
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/transaction/createTransaction/index.ts
+
+  CreateTransactionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-create-transaction"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetTransactionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-transactions"
+      Handler: transaction/getTransactions/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /transactions — list with filters"
+      Events:
+        GetTransactions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /transactions
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/transaction/getTransactions/index.ts
+
+  GetTransactionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-transactions"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetTransactionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-transaction"
+      Handler: transaction/getTransaction/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /transactions/{txnId}"
+      Events:
+        GetTransaction:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /transactions/{txnId}
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints: 
+          - src/transaction/getTransaction/index.ts
+
+  GetTransactionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-transaction"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  UpdateTransactionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-update-transaction"
+      Handler: transaction/updateTransaction/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "PUT /transactions/{txnId} — atomic update with summary delta"
+      Events:
+        UpdateTransaction:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /transactions/{txnId}
+            Method: PUT
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/transaction/updateTransaction/index.ts
+
+  UpdateTransactionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-update-transaction"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  DeleteTransactionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-delete-transaction"
+      Handler: transaction/deleteTransaction/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "DELETE /transactions/{txnId} — atomic delete + summary reversal"
+      Events:
+        DeleteTransaction:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /transactions/{txnId}
+            Method: DELETE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/transaction/deleteTransaction/index.ts
+
+  DeleteTransactionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-delete-transaction"
+      RetentionInDays: !If [IsProd, 30, 7]
   # ───────────────────────────────────────────────────────
   # SSM Export — API Endpoint
   #

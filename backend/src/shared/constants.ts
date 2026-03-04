@@ -1,6 +1,5 @@
-// =========================================================
-// HTTP Status Codes
-// =========================================================
+import { Transaction } from "../transaction/model";
+
 export const STATUS = {
   OK: 200,
   CREATED: 201,
@@ -13,17 +12,7 @@ export const STATUS = {
   INTERNAL_ERROR: 500
 };
 
-// =========================================================
-// Response Helpers
-//
-// Two helpers — one for success, one for error.
-// Consistent envelope shape across all APIs:
-//
-// Success: { status: 200, data: T,    message: null }
-// Error:   { status: xxx, data: null, message: string }
-// =========================================================
 
-// Success response — always 200
 export const response = <T>(data: T) => ({
   statusCode: STATUS.OK,
   body: JSON.stringify({
@@ -33,7 +22,15 @@ export const response = <T>(data: T) => ({
   })
 });
 
-// Error response — caller provides status code + message
+export const created = <T>(data: T) => ({
+  statusCode: STATUS.CREATED,
+  body: JSON.stringify({
+    status: STATUS.CREATED,
+    data,
+    message: null
+  })
+});
+
 export const error = (statusCode: number, message: string) => ({
   statusCode,
   body: JSON.stringify({
@@ -42,3 +39,8 @@ export const error = (statusCode: number, message: string) => ({
     message
   })
 });
+
+export const stripKeys = (item: Record<string, unknown>): Transaction => {
+    const { PK: _PK, SK: _SK, GSI1PK: _GSI1PK, GSI1SK: _GSI1SK, GSI2PK: _GSI2PK, GSI2SK: _GSI2SK, ...response } = item;
+    return response as unknown as Transaction;
+};
