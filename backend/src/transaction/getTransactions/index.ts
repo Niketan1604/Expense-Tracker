@@ -6,7 +6,7 @@ import { getUserId } from '../../shared/auth';
 import { response, error, STATUS, stripKeys } from '../../shared/constants';
 import { parseQueryParams, monthSchema, transactionTypeSchema } from '../../shared/validation';
 import { createLogger } from '../../shared/logger';
-import { transactionPK, gsi1PK, gsi2PK, Transaction } from '../model';
+import { transactionPK, gsi1PK, gsi2PK } from '../model';
 
 const logger = createLogger('getTransactions');
 
