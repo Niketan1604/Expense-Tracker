@@ -19,7 +19,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     try {
         // Step 0 — sanitize only user-controlled input (body)
         if (event.body) {
-            event = { ...event, body: JSON.parse(xss(JSON.stringify(event.body))) };
+            event = { ...event, body: xss(event.body) };
         }
 
         // Step 1 — extract userId + email from JWT claims

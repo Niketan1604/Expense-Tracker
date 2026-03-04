@@ -69,7 +69,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             const result = await docClient.send(new QueryCommand({
                 TableName: TABLE_NAME,
                 IndexName: 'GSI2',
-                KeyConditionExpression: 'GSI2PK = :pk AND begins_with(GSI2SK, :skPrefix)',
+                KeyConditionExpression: 'GSI2PK = :pk AND begins_with(SK, :skPrefix)',
                 ExpressionAttributeValues: {
                     ':pk': gsi2PK(userId, type),
                     ':skPrefix': skPrefix

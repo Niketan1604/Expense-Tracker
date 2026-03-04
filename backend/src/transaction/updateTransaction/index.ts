@@ -113,7 +113,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
                     TableName: TABLE_NAME, Item: {
                         PK, SK: newSK,
                         GSI1PK: gsi1PK(userId, newCategoryId), GSI1SK: newSK,
-                        GSI2PK: gsi2PK(userId, newType), GSI2SK: newSK,
+                        GSI2PK: gsi2PK(userId, newType),
                         transactionId: txnId, userId,
                         type: newType, amount: newAmount, categoryId: newCategoryId,
                         description: newDescription, date: newDate, createdAt, updatedAt: now
@@ -124,12 +124,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             items.push({
                 Update: {
                     TableName: TABLE_NAME, Key: { PK, SK: oldSK },
-                    UpdateExpression: 'SET #type=:type, amount=:amount, categoryId=:catId, description=:desc, GSI1PK=:g1pk, GSI1SK=:g1sk, GSI2PK=:g2pk, GSI2SK=:g2sk, updatedAt=:now',
+                    UpdateExpression: 'SET #type=:type, amount=:amount, categoryId=:catId, description=:desc, GSI1PK=:g1pk, GSI1SK=:g1sk, GSI2PK=:g2pk, updatedAt=:now',
                     ExpressionAttributeNames: { '#type': 'type' },
                     ExpressionAttributeValues: {
                         ':type': newType, ':amount': newAmount, ':catId': newCategoryId,
                         ':desc': newDescription, ':g1pk': gsi1PK(userId, newCategoryId),
-                        ':g1sk': newSK, ':g2pk': gsi2PK(userId, newType), ':g2sk': newSK, ':now': now
+                        ':g1sk': newSK, ':g2pk': gsi2PK(userId, newType), ':now': now
                     },
                     ConditionExpression: 'attribute_exists(PK)'
                 }

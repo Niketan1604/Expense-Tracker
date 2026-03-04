@@ -75,7 +75,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
                             GSI1PK: gsi1PK(userId, body.categoryId),
                             GSI1SK: sk,
                             GSI2PK: gsi2PK(userId, body.type),
-                            GSI2SK: sk,
                             transactionId,
                             userId,
                             type: body.type,
