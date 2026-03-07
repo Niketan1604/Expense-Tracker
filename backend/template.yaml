@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Expense Tracker — Backend (Lambda + API Gateway)
+Description: FlowMint — Backend (Lambda + API Gateway)
 
 # =========================================================
 # Parameters
@@ -398,6 +398,325 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-delete-transaction"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetBudgetsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-budgets"
+      Handler: budget/getBudgets/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /budgets — retrieve all budgets for the authenticated user"
+      Events:
+        GetBudgets:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /budgets
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/budget/getBudgets/index.ts
+
+  GetBudgetsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-budgets"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  SetBudgetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-set-budget"
+      Handler: budget/setBudget/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "POST /budgets — create and update budget information for the authenticated user"
+      Events:
+        SetBudget:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /budgets
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/budget/setBudget/index.ts
+
+  SetBudgetLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-set-budget"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  DeleteBudgetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-delete-budget"
+      Handler: budget/deleteBudget/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "DELETE /budgets/{categoryId} — delete budget information for the authenticated user"
+      Events:
+        DeleteBudget:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /budgets/{categoryId}
+            Method: DELETE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/budget/deleteBudget/index.ts
+
+  DeleteBudgetLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-delete-budget"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  CreateCategoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-create-category"
+      Handler: category/createCategory/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "POST /categories — create a new category for the authenticated user"
+      Events:
+        CreateCategory:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /categories
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/category/createCategory/index.ts
+
+  CreateCategoryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-create-category"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  UpdateCategoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-update-category"
+      Handler: category/updateCategory/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "PUT /categories/{categoryId} — update an existing category for the authenticated user"
+      Events:
+        UpdateCategory:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /categories/{categoryId}
+            Method: PUT
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/category/updateCategory/index.ts
+
+  UpdateCategoryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-update-category"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  DeleteCategoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-delete-category"
+      Handler: category/deleteCategory/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "DELETE /categories/{categoryId} — delete an existing category for the authenticated user"
+      Events:
+        DeleteCategory:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /categories/{categoryId}
+            Method: DELETE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/category/deleteCategory/index.ts
+
+  DeleteCategoryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-delete-category"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetCategoriesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-categories"
+      Handler: category/getCategories/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /categories — retrieve all categories for the authenticated user"
+      Events:
+        GetCategories:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /categories
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/category/getCategories/index.ts
+
+  GetCategoriesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-categories"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetSummaryBreakdownFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-summary-breakdown"
+      Handler: summary/getBreakdown/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /summary/breakdown — retrieve summary breakdown for the authenticated user"
+      Events:
+        GetSummaryBreakdown:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /summary/breakdown
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/summary/getBreakdown/index.ts
+
+  GetSummaryBreakdownLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-summary-breakdown"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetMonthlySummaryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-monthly-summary"
+      Handler: summary/getMonthlySummary/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /summary — retrieve monthly summary for the authenticated user"
+      Events:
+        GetMonthlySummary:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /summary
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/summary/getMonthlySummary/index.ts
+
+  GetMonthlySummaryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-monthly-summary"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetTopCategoriesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-top-categories"
+      Handler: summary/getTopCategories/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /summary/top-categories — retrieve all top categories for the authenticated user"
+      Events:
+        GetTopCategories:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /summary/top-categories
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/summary/getTopCategories/index.ts
+
+  GetTopCategoriesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-top-categories"
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  GetTrendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AppName}-${EnvName}-get-trend"
+      Handler: summary/getTrend/index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Description: "GET /summary/trend — retrieve trend data for the authenticated user"
+      Events:
+        GetTrend:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi 
+            Path: /summary/trend
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - src/summary/getTrend/index.ts
+
+  GetTrendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-trend"
       RetentionInDays: !If [IsProd, 30, 7]
   # ───────────────────────────────────────────────────────
   # SSM Export — API Endpoint

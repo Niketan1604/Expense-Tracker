@@ -1,404 +1,494 @@
-# Expense Tracker
-
-A serverless, cloud-native expense tracking application built on AWS. The frontend is a Next.js static export served via CloudFront, the backend is a set of Lambda functions exposed through API Gateway (HTTP API v2), and all infrastructure is managed as code — CDK for cloud resources and SAM for the backend runtime.
-
----
-
-## Table of Contents
-
-- [Architecture Overview](#architecture-overview)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Infrastructure Design](#infrastructure-design)
-  - [IAM & Security](#iam--security)
-  - [Database](#database)
-  - [Auth](#auth)
-  - [Backend](#backend)
-  - [Frontend Hosting](#frontend-hosting)
-  - [CDN & Edge](#cdn--edge)
-- [Deploy Order & SSM Wiring](#deploy-order--ssm-wiring)
-- [CI/CD Pipeline](#cicd-pipeline)
-- [Local Development](#local-development)
-- [Environment Setup](#environment-setup)
-- [Security Model](#security-model)
+# Expense Tracker — Project Documentation
+## Complete Session Summary (For Next Chat)
 
 ---
 
-## Architecture Overview
+## 1. Project Overview
 
+**Name:** Expense Tracker
+**Repo:** github.com/Niketan1604/FlowMint
+**Architecture:** Monorepo with 3 subdirectories — `iac/`, `backend/`, `frontend/`
+**AWS Account:** Free tier
+**Primary Region:** ap-south-1 (Mumbai)
+**Edge Region:** us-east-1 (CloudFront requirement)
+
+### Tech Stack
 ```
-User Browser
-     │
-     ▼
-CloudFront (edge-stack)          ← CDN, HTTPS, ACM cert (us-east-1)
-     │                  │
-     ▼                  ▼
-S3 Static Site     API Gateway HTTP API v2 (SAM)
-(frontend-stack)        │
-                        │  JWT authorizer → Cognito (cognito-stack)
-                        ▼
-                   Lambda Functions (SAM)
-                        │
-                        ▼
-                   DynamoDB Tables (database-stack)
+Infrastructure  → AWS CDK (TypeScript)
+Backend         → AWS SAM + Lambda (TypeScript, Node.js 24.x, arm64)
+Frontend        → Next.js (static export → S3 + CloudFront)
+Database        → DynamoDB (single table design)
+Auth            → Cognito (email/password, Phase 2: Google + Facebook)
+CI/CD           → Jenkins on EC2 (i-024a4bc81e88635ab, ap-south-1)
 ```
 
-All infrastructure values (table names, Cognito pool IDs, CloudFront domain) are shared between stacks and SAM via **SSM Parameter Store** — no hardcoded ARNs or cross-stack references.
+---
+
+## 2. Infrastructure (CDK Stacks)
+
+### Stack Deployment Order
+```
+1. IAM Stack           → ap-south-1  ✅ DEPLOYED
+2. Database Stack      → ap-south-1  ✅ DEPLOYED
+3. Frontend Stack      → ap-south-1  ✅ DEPLOYED
+4. Edge Stack          → us-east-1   ✅ DEPLOYED
+5. Cognito Stack       → ap-south-1  ✅ DEPLOYED (Phase 1 - email/password only)
+6. Backend Stack       → ap-south-1  🔄 IN PROGRESS (SAM deploy)
+```
+
+### Stack Details
+
+#### IAM Stack (`flowmint-dev-iam`)
+- `jenkins-deploy-role` — assumed by EC2 Jenkins to deploy all stacks
+- `cfn-execution-role` — passed to CloudFormation for stack operations
+- **Key permissions on jenkins-deploy-role:**
+  - SSM GetParameter (CDK bootstrap params — both ap-south-1 + us-east-1)
+  - iam:PassRole (cfn-exec roles — both regions)
+  - S3 bootstrap buckets (both regions)
+  - CloudFormation stacks (both regions)
+  - SSM params for app (`/flowmint/env/*`)
+
+#### Database Stack (`flowmint-dev-database`)
+- DynamoDB single table: `flowmint-dev-table`
+- GSI: `GSI1` (GSI1PK + GSI1SK)
+- **SSM exports (ap-south-1):**
+  ```
+  /flowmint/dev/database/table-name
+  /flowmint/dev/database/table-arn
+  /flowmint/dev/database/gsi1-arn
+  ```
+
+#### Frontend Stack (`flowmint-dev-frontend`)
+- S3 bucket for Next.js static export
+- **SSM exports (ap-south-1):**
+  ```
+  /flowmint/dev/frontend/bucket-name
+  ```
+
+#### Edge Stack (`flowmint-dev-edge`)
+- CloudFront distribution with OAC (Origin Access Control)
+- S3 bucket policy set via `AwsCustomResource` (bucket is in ap-south-1, stack in us-east-1)
+  - `region: 'ap-south-1'` explicitly set on all AwsCustomResource SDK calls
+- No geo-restriction (removed to avoid false 403s during testing)
+- **SSM exports (us-east-1):**
+  ```
+  /flowmint/dev/edge/cloudfront-domain
+  /flowmint/dev/edge/distribution-id
+  ```
+
+#### Cognito Stack (`flowmint-dev-cognito`) — Phase 1
+- User Pool: `flowmint-dev-user-pool`
+  - Email-only sign-in (case-insensitive)
+  - Self sign-up enabled
+  - Email verification via code
+  - `keepOriginal.email: true`
+  - Strong password policy (8+ chars, upper, lower, digits, symbols)
+  - `deletionProtection: envName === 'prod'` only
+  - `removalPolicy: RETAIN` on prod, `DESTROY` on dev
+  - No `advancedSecurityMode` (costs money on free tier)
+- App Client: `flowmint-dev-client`
+  - `generateSecret: false` (public SPA client)
+  - `authFlows: { userSrp: true }` only (no plaintext password)
+  - `enableTokenRevocation: true`
+  - `preventUserExistenceErrors: true`
+  - OAuth: authorizationCodeGrant, callbacks to CloudFront + localhost:3000
+  - Token validity: access=30min, id=30min, refresh=30days, session=3min
+- Hosted UI domain: `flowmint-dev.auth.ap-south-1.amazoncognito.com`
+- **SSM exports (ap-south-1):**
+  ```
+  /flowmint/dev/cognito/user-pool-id
+  /flowmint/dev/cognito/app-client-id
+  /flowmint/dev/cognito/issuer-url
+  /flowmint/dev/cognito/hosted-ui-url
+  ```
+- **`cloudfrontDomain` prop** — passed from `bin/flowmint-iac.ts` via CDK context:
+  ```typescript
+  // In bin/flowmint-iac.ts
+  const cloudfrontDomain = app.node.tryGetContext('cloudfrontDomain');
+  ```
+  ```bash
+  # In Jenkinsfile before cdk synth (Stage 4 - Read SSM Config):
+  CLOUDFRONT_DOMAIN=$(aws ssm get-parameter \
+    --name /flowmint/dev/edge/cloudfront-domain \
+    --region us-east-1 ...)
+
+  npx cdk synth --context cloudfrontDomain=${CLOUDFRONT_DOMAIN}
+  ```
+
+### IAC Jenkinsfile Stages
+```
+1.  Checkout
+2.  Assume Role
+3.  Install Dependencies
+4.  Read SSM Config        ← reads cloudfront-domain from us-east-1
+5.  CDK Synth              ← --context env=dev --context cloudfrontDomain=xxx
+6.  CDK Diff               ← --app cdk.out (no re-synth)
+7.  Approval Gate
+8.  Deploy: IAM
+9.  Deploy: Database
+10. Deploy: Cognito
+11. Deploy: Frontend S3
+12. Deploy: Edge (CloudFront)
+13. Print CloudFront URL
+```
+
+### Key CDK Patterns Used
+- `--app cdk.out` — synth once, reuse for diff + deploy
+- `AwsCustomResource` — S3 bucket policy cross-region (edge stack in us-east-1, bucket in ap-south-1)
+- `addDependency()` — explicit ordering between stacks
+- `crossRegionReferences: true` — frontend → edge stack
+- SSM params written natively via `ssm.StringParameter`
 
 ---
 
-## Tech Stack
+## 3. DynamoDB Table Design (Single Table)
 
-| Layer | Technology |
+**Table Name:** `flowmint-dev-table`
+
+### Access Patterns & Key Structure
+```
+Entity          PK                    SK
+──────────────────────────────────────────────────────────────
+UserProfile     USER#{userId}         PROFILE
+Category        USER#{userId}         CATEGORY#{categoryId}
+Budget          USER#{userId}         BUDGET#{yyyy}#{mm}#{categoryId}
+Expense         USER#{userId}         EXPENSE#{yyyy-mm-dd}#{expenseId}
+MonthlySummary  USER#{userId}         SUMMARY#{yyyy}#{mm}#{categoryId}
+MonthlyTotal    USER#{userId}         SUMMARY#{yyyy}#{mm}#ALL
+```
+
+### GSI1 (for expense queries by category)
+```
+GSI1PK: USER#{userId}#CAT#{categoryId}
+GSI1SK: EXPENSE#{yyyy-mm-dd}#{expenseId}
+```
+
+### Key Design Decisions
+- `userId` = Cognito `sub` (NOT username) — stable, unique, works with social login
+- Month always zero-padded: `'01'` not `'1'`
+- Date in ISO format: `yyyy-mm-dd`
+- `MonthlySummary` updated atomically via `TransactWriteItems` on every expense write
+- `MonthlyTotal` (`SUMMARY#{yyyy}#{mm}#ALL`) — pre-aggregated total across all categories
+
+---
+
+## 4. Backend (SAM + Lambda)
+
+### Current Status
+- Foundation APIs implemented, ready to deploy
+
+### Project Structure
+```
+backend/
+├── template.yaml
+├── package.json
+├── tsconfig.json
+└── src/
+    ├── shared/
+    │   ├── db.ts          ← DynamoDB DocumentClient + TABLE_NAME
+    │   ├── auth.ts        ← getUserId(), getUserEmail() from JWT claims
+    │   ├── constants.ts   ← STATUS codes, response(), error() helpers
+    │   └── logger.ts      ← createLogger(service) using @aws-lambda-powertools/logger
+    ├── health/
+    │   └── index.ts       ← GET /health (public, no auth)
+    └── user/
+        ├── model.ts       ← UserProfile interface + userProfileKey()
+        ├── getUserProfile/
+        │   └── index.ts   ← GET /user/profile
+        └── putUserProfile/
+            └── index.ts   ← PUT /user/profile
+```
+
+### template.yaml Key Points
+- **Runtime:** nodejs24.x, arm64, 256MB, 29s timeout
+- **Build:** esbuild via SAM `Metadata.BuildMethod` (Minify: true, per function)
+- **HTTP API:** JWT authorizer (Cognito) as default, `/health` is `Authorizer: NONE`
+- **CORS:** Configured at API Gateway level (NOT in Lambda handlers)
+- **SSM resolution:** `!Sub '{{resolve:ssm:/flowmint/${EnvName}/...}}'` at deploy time
+- **Log retention:** 7 days dev, 30 days prod via `!If [IsProd, 30, 7]`
+- **SSM export:** `ApiEndpointParam` resource writes `/flowmint/dev/backend/api-endpoint` automatically
+
+### SAM Deploy Command
+```bash
+sam deploy \
+  --stack-name flowmint-dev-backend \
+  --region ap-south-1 \
+  --capabilities CAPABILITY_IAM \
+  --force-upload \                    # always overrides console changes
+  --no-fail-on-empty-changeset \
+  --parameter-overrides \
+    AppName=flowmint \
+    EnvName=dev
+```
+
+### Backend Jenkinsfile Stages
+```
+1.  Checkout
+2.  Assume Role
+3.  Install Dependencies (npm ci)
+4.  Type Check (tsc --noEmit)
+5.  Lint (eslint)
+6.  Unit Tests (jest --passWithNoTests)
+7.  Security Audit (npm audit --audit-level=high)
+8.  SAM Validate (sam validate --lint)
+9.  SAM Build (sam build --parallel)
+10. Approval Gate (prod only)
+11. SAM Deploy
+12. Smoke Test (curl /health)
+```
+
+### Shared Layer Patterns
+
+#### `shared/constants.ts`
+```typescript
+export const STATUS = { OK: 200, CREATED: 201, ... } as const;
+
+export const response = <T>(data: T) => ({
+  statusCode: STATUS.OK,
+  body: JSON.stringify({ status: STATUS.OK, data, message: null })
+});
+
+export const error = (statusCode: number, message: string) => ({
+  statusCode,
+  body: JSON.stringify({ status: statusCode, data: null, message })
+});
+```
+
+#### Response Envelope (ALL APIs return this shape)
+```json
+// Success
+{ "status": 200, "data": { ... }, "message": null }
+
+// Error
+{ "status": 404, "data": null, "message": "User profile not found" }
+```
+
+#### `shared/auth.ts`
+```typescript
+export const getUserId = (event): string | undefined  // Cognito sub
+export const getUserEmail = (event): string | undefined
+```
+
+#### `shared/logger.ts`
+```typescript
+// Uses @aws-lambda-powertools/logger
+export const createLogger = (service: string): Logger
+
+// Usage in each handler:
+const logger = createLogger('getUserProfile');
+logger.info('message', { userId });
+logger.error('message', { error });
+```
+
+#### XSS Protection Pattern
+```typescript
+// Sanitize only event.body — NOT the entire event
+// (sanitizing entire event corrupts JWT claims in requestContext)
+if (event.body) {
+  event = { ...event, body: xss(event.body) };
+}
+```
+
+### Handler Conventions
+1. No hardcoded status codes — always use `STATUS.*`
+2. No `JSON.stringify` in handlers — use `response()` / `error()`
+3. No CORS headers in Lambda — handled at API Gateway level
+4. Strip PK/SK from all DynamoDB responses: `const { PK, SK, ...data } = item`
+5. `userId` always from JWT `sub`, never from request body
+6. `email` always from JWT claims, never from request body
+7. Each feature folder has its own `model.ts`
+8. Each handler has its own logger: `const logger = createLogger('handlerName')`
+
+### Dependencies
+```json
+{
+  "dependencies": {
+    "@aws-lambda-powertools/logger": "^2.31.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "xss": "^1.0.15"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.0",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "esbuild": "^0.27.3",
+    "eslint": "^9.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+---
+
+## 5. Cognito Testing (How to Test)
+
+### Get Tokens via Hosted UI
+```
+1. Open in browser:
+https://flowmint-dev.auth.ap-south-1.amazoncognito.com/login
+  ?client_id=<app-client-id>
+  &response_type=code
+  &scope=email+openid+profile
+  &redirect_uri=http://localhost:3000
+
+2. Sign up / sign in → get code from redirect URL
+
+3. Exchange code for tokens (Thunder Client or curl):
+POST https://flowmint-dev.auth.ap-south-1.amazoncognito.com/oauth2/token
+Content-Type: application/x-www-form-urlencoded
+Body (Form):
+  grant_type=authorization_code
+  client_id=<app-client-id>
+  code=<code>
+  redirect_uri=http://localhost:3000
+
+4. Get back: access_token, id_token, refresh_token
+```
+
+### Token Notes
+- `id_token` — contains email, email_verified, sub (decode at jwt.io)
+- `access_token` — contains username, scope (used by API Gateway JWT authorizer)
+- `refresh_token` — opaque (not a JWT, cannot be decoded — this is correct)
+- Code expires in ~60 seconds — exchange immediately
+
+---
+
+## 6. Jenkins Setup
+
+**EC2:** i-024a4bc81e88635ab, ap-south-1
+**Jenkins URL:** http://<ec2-ip>:8080
+
+### Multibranch Pipeline Jobs
+```
+flowmint-iac      → iac/Jenkinsfile
+flowmint-backend  → backend/Jenkinsfile
+flowmint-frontend → frontend/Jenkinsfile
+```
+
+### Branch → Environment Mapping
+```
+main   → prod
+*      → dev (all other branches including develop)
+```
+
+### Pipeline Config (all 3 jobs)
+- **Branch Source:** GitHub (HTTPS) with fine-grained PAT
+- **Credentials:** `github-pat` (Username with password)
+- **Behaviour:** Discover branches — "Exclude branches filed as PRs"
+- **Build Strategy:** Accept build by included regions (`iac/**`, `backend/**`, `frontend/**`)
+- **Periodic scan:** Disabled (webhook handles triggers)
+
+### Credentials Stored in Jenkins
+```
+github-ssh-key   — SSH key for git checkout
+github-pat       — Fine-grained PAT for GitHub branch source
+aws-account-id   — AWS account ID (secret text)
+```
+
+---
+
+## 7. Current Status & Next Steps
+
+### ✅ Completed
+- Jenkins webhook auto-trigger
+- IAM stack
+- Database stack
+- Frontend S3 stack
+- Edge stack (CloudFront + OAC + bucket policy)
+- Cognito stack (Phase 1 — email/password)
+- Cognito testing verified (tokens working)
+- Backend shared layer (db, auth, constants, logger)
+- Foundation API handlers (health, getUserProfile, putUserProfile)
+- Backend template.yaml with esbuild
+- Backend Jenkinsfile
+
+### 🔄 Next Steps (In Order)
+```
+1. Deploy foundation APIs
+   └── Commit + push → backend pipeline triggers
+   └── Test /health, GET /user/profile, PUT /user/profile
+
+2. Categories APIs
+   └── GET    /categories
+   └── POST   /categories
+   └── PUT    /categories/{categoryId}
+   └── DELETE /categories/{categoryId}
+
+3. Budgets APIs
+   └── GET    /budgets
+   └── POST   /budgets
+   └── PUT    /budgets/{categoryId}/{month}
+   └── DELETE /budgets/{categoryId}/{month}
+
+4. Expenses APIs (uses TransactWriteItems)
+   └── GET    /expenses
+   └── POST   /expenses
+   └── GET    /expenses/{expenseId}
+   └── PUT    /expenses/{expenseId}
+   └── DELETE /expenses/{expenseId}
+
+5. Summary APIs (read-only, pre-computed)
+   └── GET /summary?month=
+   └── GET /summary/trend?months=
+
+6. Account API
+   └── DELETE /user/account
+
+7. Frontend (Next.js UI)
+   └── Needs API endpoint + Cognito client ID from SSM
+
+8. Social Login Phase 2
+   └── Google OAuth app → Secrets Manager
+   └── Facebook OAuth app → Secrets Manager
+   └── Add providers to Cognito stack
+```
+
+---
+
+## 8. Important Decisions & Why
+
+| Decision | Why |
 |---|---|
-| Frontend | Next.js (static export), Node 24, npm 11 |
-| Backend | AWS Lambda, Node 24, TypeScript |
-| API | AWS API Gateway HTTP API (v2) |
-| Auth | AWS Cognito User Pool — JWT authorizer |
-| Database | AWS DynamoDB |
-| CDN | AWS CloudFront + ACM |
-| Frontend Hosting | AWS S3 (static website) |
-| Infrastructure | AWS CDK (TypeScript) |
-| Backend IaC | AWS SAM (template.yaml) |
-| CI/CD | Jenkins on EC2 (t3.micro) |
-| Secrets/Config | AWS SSM Parameter Store |
+| Single table DynamoDB | Cost + performance for access patterns |
+| `sub` as userId (not username) | Stable, unique, works across identity providers |
+| SAM for backend (not CDK) | Separate pipeline, SAM esbuild integration |
+| `--force-upload` in sam deploy | Pipeline always wins over console changes |
+| CORS at API Gateway level | Avoids duplicate headers (API GW + Lambda) |
+| XSS only on `event.body` | Sanitizing entire event corrupts JWT claims |
+| `@aws-lambda-powertools/logger` | Async, structured JSON, X-Ray integration |
+| No `advancedSecurityMode` | Costs extra on free AWS account |
+| `response()` / `error()` helpers | Consistent envelope shape across all APIs |
+| esbuild with `Minify: true` | Smaller Lambda packages, faster cold starts |
+| `{{resolve:ssm:...}}` in template | Zero latency at runtime, no SDK calls |
+| `AwsCustomResource` for S3 policy | CDK `addToResourcePolicy()` is no-op on imported buckets |
+| `--app cdk.out` in CDK pipeline | Synth once — diff and deploy use same templates |
 
 ---
 
-## Project Structure
+## 9. SSM Parameter Map
+
+All parameters in ap-south-1 unless noted:
 
 ```
-Expense-Tracker/
-│
-├── frontend/                          # Next.js application
-│   ├── app/                           # App Router pages and layouts
-│   ├── components/                    # Shared UI components
-│   ├── public/                        # Static assets
-│   ├── next.config.js                 # output: 'export' (static build)
-│   ├── package.json                   # Node 24, npm 11
-│   └── tsconfig.json
-│
-├── backend/                           # SAM application (Lambda + API GW)
-│   ├── template.yaml                  # SAM template — HTTP API + all Lambda functions
-│   ├── samconfig.toml                 # Per-environment deploy configuration
-│   ├── src/
-│   │   ├── expenses/                  # One folder per Lambda handler
-│   │   │   ├── create.ts              # POST /expenses
-│   │   │   ├── list.ts                # GET  /expenses
-│   │   │   ├── update.ts              # PUT  /expenses/{id}
-│   │   │   └── delete.ts              # DELETE /expenses/{id}
-│   │   └── shared/                    # Shared utilities across all handlers
-│   │       ├── db.ts                  # DynamoDB DocumentClient singleton
-│   │       └── types.ts               # Shared TypeScript types
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── iac/                               # CDK Infrastructure
-│   ├── bin/
-│   │   └── expense-tracker-iac.ts     # Entry point — instantiates all stacks in order
-│   │
-│   ├── lib/
-│   │   ├── expense-tracker-iam-stack.ts        # IAM roles, permission boundaries
-│   │   ├── expense-tracker-database-stack.ts   # DynamoDB tables
-│   │   ├── expense-tracker-cognito-stack.ts    # Cognito User Pool + App Client
-│   │   ├── expense-tracker-frontend-stack.ts   # S3 bucket for Next.js static output
-│   │   └── expense-tracker-edge-stack.ts       # CloudFront + ACM (must deploy to us-east-1)
-│   │
-│   ├── cdk.json
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── jenkins/
-│   ├── Jenkinsfile                    # Main pipeline — CDK → SAM → Frontend
-│   └── scripts/
-│       ├── deploy-iac.sh              # Runs CDK deploy for all stacks
-│       ├── deploy-backend.sh          # Runs SAM build + deploy
-│       └── deploy-frontend.sh         # Runs next build + S3 sync + CF invalidation
-│
-├── .gitignore
-└── README.md
+/flowmint/dev/database/table-name
+/flowmint/dev/database/table-arn
+/flowmint/dev/database/gsi1-arn
+/flowmint/dev/cognito/user-pool-id
+/flowmint/dev/cognito/app-client-id
+/flowmint/dev/cognito/issuer-url
+/flowmint/dev/cognito/hosted-ui-url
+/flowmint/dev/edge/cloudfront-domain    ← us-east-1
+/flowmint/dev/edge/distribution-id      ← us-east-1
+/flowmint/dev/backend/api-endpoint      ← written by SAM deploy
 ```
 
 ---
 
-## Infrastructure Design
+## 10. Known Issues / Parked
 
-### IAM & Security
-
-**File:** `iac/lib/expense-tracker-iam-stack.ts`
-
-This is always the first stack deployed. It establishes the IAM role chain that all deployments flow through.
-
-```
-EC2 Instance Role (jenkins-ec2-role)
-    └── sts:AssumeRole only
-         └── Jenkins Deploy Role ({app}-{env}-jenkins-deploy-role)
-              ├── SSM read ({app}/{env}/*)
-              ├── S3 read/write on CDK bootstrap bucket
-              ├── cloudformation:* on {app}-{env}-* stacks
-              └── iam:PassRole → cfn-execution-role only
-                   └── CFN Execution Role ({app}-{env}-cfn-execution-role)
-                        └── Permission Boundary (hard ceiling)
-                             ├── S3: {app}-{env}-* only
-                             ├── DynamoDB: {app}-{env}-* only
-                             ├── Lambda: {app}-{env}-* only
-                             ├── API Gateway: account + region
-                             ├── CloudFront: account distributions
-                             ├── Cognito: account user pools
-                             ├── ACM: region + us-east-1
-                             ├── Logs: /aws/lambda/{app}-{env}-*
-                             └── IAM PassRole: lambda + apigateway only
-```
-
-Key security decisions:
-- **No static IAM user access keys** — Jenkins EC2 uses an Instance Role. AWS auto-issues temporary STS credentials (1hr TTL). Nothing stored on disk.
-- **IMDSv2 enforced** on EC2 — blocks SSRF attacks against the metadata endpoint.
-- **Permission boundary** on CFN execution role — even if the role is compromised, it cannot touch resources outside the app's naming convention or create unrestricted IAM roles.
-- Jenkins EC2 Security Group — port 8080 restricted to known IPs only. No port 22 open; access via AWS Session Manager.
-
----
-
-### Database
-
-**File:** `iac/lib/expense-tracker-database-stack.ts`
-
-DynamoDB tables for the application. All table names and ARNs are exported to SSM for consumption by SAM at deploy time.
-
-SSM exports from this stack:
-```
-/{app}/{env}/database/expenses-table-name
-/{app}/{env}/database/expenses-table-arn
-```
-
----
-
-### Auth
-
-**File:** `iac/lib/expense-tracker-cognito-stack.ts`
-
-AWS Cognito User Pool with an App Client for the frontend. The User Pool ID and Client ID are exported to SSM so that:
-- SAM wires the HTTP API JWT authorizer automatically
-- The Next.js frontend knows which pool to authenticate against
-
-SSM exports from this stack:
-```
-/{app}/{env}/cognito/user-pool-id
-/{app}/{env}/cognito/user-pool-arn
-/{app}/{env}/cognito/app-client-id
-/{app}/{env}/cognito/issuer-url
-```
-
----
-
-### Backend
-
-**Tool:** AWS SAM (not CDK)
-**File:** `backend/template.yaml`
-
-SAM manages the full backend runtime — API Gateway HTTP API v2, all Lambda functions, and their IAM execution roles. SAM was chosen over CDK for the backend because:
-
-- `sam local start-api` gives a full local API + Lambda runtime for development
-- `sam local invoke` lets you test individual functions with mock event payloads
-- SAM handles Lambda build, packaging, and layer management natively
-- It keeps the backend self-contained — a backend developer doesn't need to understand CDK to work on Lambda functions
-
-**API Gateway:** HTTP API v2 with a Cognito JWT authorizer. All routes except health check require a valid Cognito token. The JWT authorizer validates tokens natively — no custom Lambda authorizer code required.
-
-SAM reads the following from SSM at deploy time:
-```
-/{app}/{env}/cognito/user-pool-id          → JWT authorizer issuer
-/{app}/{env}/cognito/app-client-id         → JWT authorizer audience
-/{app}/{env}/database/expenses-table-name  → Lambda env var
-/{app}/{env}/database/expenses-table-arn   → Lambda IAM policy
-/{app}/{env}/edge/cloudfront-domain        → Lambda CORS allow-origin
-```
-
-SAM writes the following to SSM after deploy:
-```
-/{app}/{env}/backend/api-endpoint          → consumed by frontend build
-```
-
----
-
-### Frontend Hosting
-
-**File:** `iac/lib/expense-tracker-frontend-stack.ts`
-
-An S3 bucket configured for static website hosting. The Next.js app is built with `output: 'export'` which produces a fully static site (HTML, CSS, JS, no server required). The Jenkins pipeline syncs the `out/` directory to this bucket after every successful build.
-
-SSM exports from this stack:
-```
-/{app}/{env}/frontend/bucket-name
-/{app}/{env}/frontend/bucket-arn
-```
-
----
-
-### CDN & Edge
-
-**File:** `iac/lib/expense-tracker-edge-stack.ts`
-**Region:** `us-east-1` (required by CloudFront for ACM certificates)
-
-CloudFront distribution in front of the S3 bucket. Handles HTTPS termination, caching, and global edge delivery. ACM certificate is provisioned in `us-east-1` regardless of the application's primary region.
-
-SSM exports from this stack:
-```
-/{app}/{env}/edge/cloudfront-domain        → consumed by SAM (CORS)
-/{app}/{env}/edge/cloudfront-distribution-id → consumed by Jenkins (cache invalidation)
-/{app}/{env}/edge/certificate-arn
-```
-
----
-
-## Deploy Order & SSM Wiring
-
-Stacks must be deployed in this exact order. Each step writes SSM params that the next step reads.
-
-```
-1. CDK: IAM Stack
-        └── writes: role ARNs
-
-2. CDK: Database Stack
-        └── writes: table names + ARNs → SSM
-
-3. CDK: Cognito Stack
-        └── writes: user pool ID + client ID + issuer URL → SSM
-
-4. CDK: Frontend Stack (S3)
-        └── writes: bucket name → SSM
-
-5. CDK: Edge Stack (CloudFront + ACM) [us-east-1]
-        └── writes: CloudFront domain + distribution ID → SSM
-
-6. SAM: Backend Deploy
-        └── reads: Cognito, DynamoDB, CloudFront values from SSM
-        └── writes: API endpoint → SSM
-
-7. Frontend Build + Deploy
-        └── reads: API endpoint from SSM → bakes into Next.js build
-        └── next build → s3 sync → CloudFront invalidation
-```
-
----
-
-## CI/CD Pipeline
-
-**File:** `jenkins/Jenkinsfile`
-
-Jenkins runs on an EC2 t3.micro instance. The pipeline has two tracks — infrastructure changes (CDK) and application changes (SAM + frontend) — but runs end-to-end on every push to ensure consistency.
-
-```
-Pipeline stages:
-  1. Checkout          — git pull from GitHub
-  2. Assume Role       — sts:AssumeRole into {env}-jenkins-deploy-role
-  3. CDK Deploy        — deploy all CDK stacks in order
-  4. SAM Build         — sam build (compiles TypeScript Lambda handlers)
-  5. SAM Deploy        — sam deploy --config-env {env}
-  6. Frontend Build    — npm run build (Next.js static export)
-  7. Frontend Deploy   — aws s3 sync + CloudFront invalidation
-  8. Approval Gate     — manual approval required before prod (prod branch only)
-```
-
-Branches map to environments:
-- `develop` → `dev`
-- `main` → `prod` (requires manual approval before deploy)
-
----
-
-## Local Development
-
-### Prerequisites
-
-| Tool | Version |
-|---|---|
-| Node.js | 24.x |
-| npm | 11.x |
-| AWS CLI | v2 |
-| AWS SAM CLI | latest |
-| AWS CDK CLI | latest |
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev          # Next.js dev server at localhost:3000
-```
-
-### Backend (Lambda + API locally)
-
-```bash
-cd backend
-npm install
-sam build
-sam local start-api  # Local API at localhost:3000
-                     # Reads from samconfig.toml for env vars
-```
-
-To invoke a single function with a mock event:
-
-```bash
-sam local invoke CreateExpenseFunction --event events/create-expense.json
-```
-
-### CDK
-
-```bash
-cd iac
-npm install
-npx cdk diff --context appName=expense-tracker --context envName=dev
-npx cdk deploy --all --context appName=expense-tracker --context envName=dev
-```
-
----
-
-## Environment Setup
-
-### First-time Bootstrap (run once per account/region)
-
-```bash
-# Bootstrap CDK in your primary region
-npx cdk bootstrap aws://{ACCOUNT_ID}/{REGION}
-
-# Bootstrap CDK in us-east-1 (required for edge stack ACM cert)
-npx cdk bootstrap aws://{ACCOUNT_ID}/us-east-1
-```
-
-### Attach Instance Role to Jenkins EC2
-
-After deploying the IAM stack for the first time:
-
-```bash
-# Get the instance profile name from SSM
-aws ssm get-parameter \
-  --name /expense-tracker/dev/iam/jenkins-instance-profile-name \
-  --query Parameter.Value --output text
-
-# Attach to EC2 via console:
-# EC2 → Your Instance → Actions → Security → Modify IAM Role → Select the profile
-```
-
-### Enable IMDSv2 on Jenkins EC2
-
-```bash
-aws ec2 modify-instance-metadata-options \
-  --instance-id {YOUR_INSTANCE_ID} \
-  --http-tokens required \
-  --http-put-response-hop-limit 1
-```
-
----
-
-## Security Model
-
-| Threat | Protection |
-|---|---|
-| Stolen AWS credentials | No static keys — EC2 Instance Role with 1hr STS tokens |
-| SSRF → metadata API | IMDSv2 enforced (PUT preflight required) |
-| Lateral movement to other AWS services | EC2 role only has `sts:AssumeRole` on `{app}-*-deploy-role` |
-| Privilege escalation via CFN | Permission boundary blocks creation of roles outside `{app}-{env}-*` |
-| Unauthorized prod deploy | Manual approval gate in Jenkins + SG restricted to known IPs |
-| Unauthenticated API access | Cognito JWT authorizer on all API routes |
-| Cross-env data access | Every policy scoped to `/{app}/{env}/` prefix — dev Lambda cannot read prod DynamoDB |
-| Port scanning / SSH brute force | Port 22 not open — access only via AWS Session Manager |
-| Unusual API activity | CloudTrail enabled — alarm on `sts:AssumeRole` from unknown IPs and any IAM mutations |
+- Jenkins Stage View shows 2 commits for same SHA — cosmetic issue, not causing duplicate builds. Root cause: webhook + scan both fire for same push. Parked for now.
