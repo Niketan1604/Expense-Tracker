@@ -4,7 +4,7 @@ import { docClient, TABLE_NAME } from '../../shared/db';
 import { getUserId } from '../../shared/auth';
 import { response, error, STATUS } from '../../shared/constants';
 import { createLogger } from '../../shared/logger';
-import { categoryKey, categoryPK } from '../model';
+import { categoryKey } from '../model';
 
 const logger = createLogger('deleteCategory');
 
