@@ -15,19 +15,10 @@ pipeline {
   stages {
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 1 — Checkout
-    // Pull latest code from GitHub
+    // STAGE 1 — Setup Environment
     // ─────────────────────────────────────────────────────────────
-    stage('Checkout') {
+    stage('Setup Environment') {
       steps {
-        checkout([
-          $class: 'GitSCM',
-          branches: [[name: "*/${env.BRANCH_NAME}"]],
-          userRemoteConfigs: [[
-            url: 'git@github.com:Niketan1604/FlowMint.git',
-            credentialsId: 'github-ssh-key'
-          ]]
-        ])
         script {
           // Determine environment from branch
           env.ENV_NAME = env.BRANCH_NAME == 'main' ? 'prod' : 'dev'

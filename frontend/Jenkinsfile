@@ -15,18 +15,10 @@ pipeline {
   stages {
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 1 — Checkout
+    // STAGE 1 — Setup Environment
     // ─────────────────────────────────────────────────────────────
-    stage('Checkout') {
+    stage('Setup Environment') {
       steps {
-        checkout([
-          $class: 'GitSCM',
-          branches: [[name: "*/${env.BRANCH_NAME}"]],
-          userRemoteConfigs: [[
-            url: 'git@github.com:Niketan1604/FlowMint.git',
-            credentialsId: 'github-ssh-key'
-          ]]
-        ])
         script {
           env.ENV_NAME = env.BRANCH_NAME == 'main' ? 'prod' : 'dev'
           env.DEPLOY_ROLE_ARN = "arn:aws:iam::${env.AWS_ACCOUNT_ID}:role/${env.APP_NAME}-${env.ENV_NAME}-jenkins-deploy-role"
