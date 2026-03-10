@@ -111,7 +111,7 @@ pipeline {
     stage('Unit Tests') {
       steps {
         dir('backend') {
-          sh 'npx jest --ci --passWithNoTests'
+          sh 'npx jest --selectProjects unit --ci --passWithNoTests'
         }
       }
     }
