@@ -16,7 +16,9 @@ const logger = createLogger('getBreakdown');
 // Query main table: PK = USER#{userId}, SK begins_with SUMMARY#{yyyy}#{mm}#
 // Excludes the #ALL item — returns only category-level items.
 //
-// This is what powers the category breakdown chart in the dashboard.
+// Fix: DynamoDB does not allow SK in FilterExpression when SK
+// is already used in KeyConditionExpression. Filter out the
+// #ALL item in application code instead.
 // =========================================================
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
@@ -33,19 +35,21 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const result = await docClient.send(new QueryCommand({
             TableName: TABLE_NAME,
             KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-            // Exclude the #ALL item — only want per-category rows
-            FilterExpression: 'SK <> :allSK',
             ExpressionAttributeValues: {
                 ':pk': summaryPK(userId),
-                ':prefix': `SUMMARY#${year}#${mm}#`,
-                ':allSK': `SUMMARY#${year}#${mm}#ALL`
+                ':prefix': `SUMMARY#${year}#${mm}#`
             }
         }));
 
-        const breakdown = (result.Items ?? []).map(item => {
-            const { PK: _PK, SK: _SK, ...rest } = item as Record<string, unknown>;
-            return rest as unknown as MonthlySummary;
-        });
+        const allSK = `SUMMARY#${year}#${mm}#ALL`;
+
+        const breakdown = (result.Items ?? [])
+            // Exclude the #ALL monthly total — only want per-category rows
+            .filter(item => item.SK !== allSK)
+            .map(item => {
+                const { PK: _PK, SK: _SK, ...rest } = item as Record<string, unknown>;
+                return rest as unknown as MonthlySummary;
+            });
 
         logger.info('Breakdown retrieved', { userId, month, categoryCount: breakdown.length });
         return response({ month, breakdown });

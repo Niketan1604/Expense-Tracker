@@ -16,11 +16,9 @@ const logger = createLogger('getTopCategories');
 // Returns categories ranked by spend (DEBIT) or income (CREDIT).
 // Reads MonthlySummary items for the month, sorts in-memory.
 //
-// type=DEBIT  → ranked by totalDebit  (top spending categories)
-// type=CREDIT → ranked by totalCredit (top income categories)
-// type not provided → ranked by absolute netBalance impact
-//
-// limit defaults to 5, max 20.
+// Fix: DynamoDB does not allow SK in FilterExpression when SK
+// is already used in KeyConditionExpression. Filter out the
+// #ALL item in application code instead.
 // =========================================================
 
 const queryParamsSchema = z.object({
@@ -43,28 +41,35 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const { month, type, limit } = params;
         const [year, mm] = month.split('-');
 
-        // Query all category-level SUMMARY items for the month
+        const allSK = `SUMMARY#${year}#${mm}#ALL`;
+
         const result = await docClient.send(new QueryCommand({
             TableName: TABLE_NAME,
             KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-            FilterExpression: 'SK <> :allSK',
             ExpressionAttributeValues: {
                 ':pk': summaryPK(userId),
-                ':prefix': `SUMMARY#${year}#${mm}#`,
-                ':allSK': `SUMMARY#${year}#${mm}#ALL`
+                ':prefix': `SUMMARY#${year}#${mm}#`
             }
         }));
 
-        const summaries = (result.Items ?? []).map(item => {
-            const { PK: _PK, SK: _SK, ...rest } = item as Record<string, unknown>;
-            return rest as unknown as MonthlySummary;
-        });
+        const summaries = (result.Items ?? [])
+            .filter(item => {
+                if (item.SK === allSK) return false;
+
+                if (type === "DEBIT") return (item.totalDebit ?? 0) > 0;
+                if (type === "CREDIT") return (item.totalCredit ?? 0) > 0;
+
+                return true;
+            })
+            .map(item => {
+                const { PK: _PK, SK: _SK, ...rest } = item as Record<string, unknown>;
+                return rest as unknown as MonthlySummary;
+            });
 
         // Sort by the relevant metric
         const sorted = summaries.sort((a, b) => {
             if (type === 'DEBIT') return b.totalDebit - a.totalDebit;
             if (type === 'CREDIT') return b.totalCredit - a.totalCredit;
-            // No type — sort by absolute netBalance impact
             return Math.abs(b.netBalance) - Math.abs(a.netBalance);
         });
 

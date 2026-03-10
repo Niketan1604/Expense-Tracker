@@ -30,7 +30,14 @@ const logger = createLogger('updateTransaction');
 //   - date change            → SK changes (Delete+Put), reverse
 //                              old month summary, apply new month
 //
-// All writes are in one TransactWrite — fully atomic.
+// Fixes applied vs original:
+//   1. description=undefined excluded from ExpressionAttributeValues
+//      DDB rejects an UpdateExpression referencing :desc when it has
+//      no binding in ExpressionAttributeValues.
+//   2. Same-month date change (e.g. Jun-01 → Jun-15) with same category
+//      must NOT use reverse+apply on the identical summary key —
+//      TransactWrite rejects two operations on the same item.
+//      Instead treat it as a plain diff update (like amount-only change).
 // =========================================================
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
@@ -45,7 +52,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const body = parseBody(sanitizedBody, updateTransactionSchema);
         if ('statusCode' in body) return body;
 
-        // Fetch existing transaction
+        // Fetch existing transaction by scanning TXN# SK space
         const result = await docClient.send(new QueryCommand({
             TableName: TABLE_NAME,
             KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
@@ -70,24 +77,27 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const newAmount = body.amount ?? oldAmount;
         const newDate = body.date ?? oldDate;
         const newCategoryId = body.categoryId ?? oldCategoryId;
-        const newDescription = body.description !== undefined
+
+        // FIX 1: Only carry description forward when it has a value.
+        // undefined must never appear in ExpressionAttributeValues.
+        const newDescription: string | undefined = body.description !== undefined
             ? body.description
-            : existing.description as string | undefined;
+            : (existing.description as string | undefined);
 
         const now = new Date().toISOString();
         const newSK = transactionSK(newDate, txnId);
 
-        // Old contribution
+        // Old contribution vectors
         const oldCredit = oldType === 'CREDIT' ? oldAmount : 0;
         const oldDebit = oldType === 'DEBIT' ? oldAmount : 0;
         const oldNet = oldCredit - oldDebit;
 
-        // New contribution
+        // New contribution vectors
         const newCredit = newType === 'CREDIT' ? newAmount : 0;
         const newDebit = newType === 'DEBIT' ? newAmount : 0;
         const newNet = newCredit - newDebit;
 
-        // Diff (for same-category same-month updates)
+        // Diffs (used for same-bucket updates)
         const creditDiff = newCredit - oldCredit;
         const debitDiff = newDebit - oldDebit;
         const netDiff = newNet - oldNet;
@@ -97,47 +107,93 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const dateChanged = oldDate !== newDate;
         const catChanged = oldCategoryId !== newCategoryId;
 
-        // Build transact items array
+        // FIX 2: same-month date change with same category
+        // oldYM === newYM means both summary keys are identical —
+        // a reverse+apply would be two ops on the same DDB item.
+        const sameMonthDateChange = dateChanged && !catChanged
+            && oldYM.year === newYM.year && oldYM.month === newYM.month;
+
         const items: object[] = [];
 
-        // Transaction item update
+        // ── Transaction item ─────────────────────────────────────────
+
         if (dateChanged) {
+            // Delete old SK, Put new SK atomically
             items.push({
                 Delete: {
-                    TableName: TABLE_NAME, Key: { PK, SK: oldSK },
+                    TableName: TABLE_NAME,
+                    Key: { PK, SK: oldSK },
                     ConditionExpression: 'attribute_exists(PK)'
                 }
             });
+            // FIX 1: spread description only when defined
             items.push({
                 Put: {
-                    TableName: TABLE_NAME, Item: {
+                    TableName: TABLE_NAME,
+                    Item: {
                         PK, SK: newSK,
                         GSI1PK: gsi1PK(userId, newCategoryId), GSI1SK: newSK,
                         GSI2PK: gsi2PK(userId, newType),
                         transactionId: txnId, userId,
                         type: newType, amount: newAmount, categoryId: newCategoryId,
-                        description: newDescription, date: newDate, createdAt, updatedAt: now
+                        ...(newDescription !== undefined ? { description: newDescription } : {}),
+                        date: newDate, createdAt, updatedAt: now
                     }
                 }
             });
         } else {
+            // FIX 1: build UpdateExpression and ExpressionAttributeValues
+            // without :desc unless description is actually defined
+            const setParts = [
+                '#type=:type',
+                'amount=:amount',
+                'categoryId=:catId',
+                'GSI1PK=:g1pk',
+                'GSI1SK=:g1sk',
+                'GSI2PK=:g2pk',
+                'updatedAt=:now'
+            ];
+            const exprValues: Record<string, unknown> = {
+                ':type': newType,
+                ':amount': newAmount,
+                ':catId': newCategoryId,
+                ':g1pk': gsi1PK(userId, newCategoryId),
+                ':g1sk': newSK,
+                ':g2pk': gsi2PK(userId, newType),
+                ':now': now
+            };
+            if (newDescription !== undefined) {
+                setParts.push('description=:desc');
+                exprValues[':desc'] = newDescription;
+            }
             items.push({
                 Update: {
-                    TableName: TABLE_NAME, Key: { PK, SK: oldSK },
-                    UpdateExpression: 'SET #type=:type, amount=:amount, categoryId=:catId, description=:desc, GSI1PK=:g1pk, GSI1SK=:g1sk, GSI2PK=:g2pk, updatedAt=:now',
+                    TableName: TABLE_NAME,
+                    Key: { PK, SK: oldSK },
+                    UpdateExpression: `SET ${setParts.join(', ')}`,
                     ExpressionAttributeNames: { '#type': 'type' },
-                    ExpressionAttributeValues: {
-                        ':type': newType, ':amount': newAmount, ':catId': newCategoryId,
-                        ':desc': newDescription, ':g1pk': gsi1PK(userId, newCategoryId),
-                        ':g1sk': newSK, ':g2pk': gsi2PK(userId, newType), ':now': now
-                    },
+                    ExpressionAttributeValues: exprValues,
                     ConditionExpression: 'attribute_exists(PK)'
                 }
             });
         }
 
-        // Category summary updates
-        if (catChanged || dateChanged) {
+        // ── Category summary updates ─────────────────────────────────
+
+        if (sameMonthDateChange) {
+            // Same bucket (PK+SK identical for old and new) — only diff
+            if (creditDiff !== 0 || debitDiff !== 0) {
+                items.push({
+                    Update: {
+                        TableName: TABLE_NAME,
+                        Key: { PK, SK: summarySK(newYM.year, newYM.month, newCategoryId) },
+                        UpdateExpression: 'ADD totalCredit :c, totalDebit :d, netBalance :n SET updatedAt=:now',
+                        ExpressionAttributeValues: { ':c': creditDiff, ':d': debitDiff, ':n': netDiff, ':now': now }
+                    }
+                });
+            }
+        } else if (catChanged || dateChanged) {
+            // Cross-category or cross-month — reverse old, apply new
             items.push({
                 Update: {
                     TableName: TABLE_NAME,
@@ -155,6 +211,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
                 }
             });
         } else if (creditDiff !== 0 || debitDiff !== 0) {
+            // Same category, same month, amounts changed
             items.push({
                 Update: {
                     TableName: TABLE_NAME,
@@ -165,8 +222,10 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             });
         }
 
-        // Monthly total updates
-        if (dateChanged) {
+        // ── Monthly total updates ────────────────────────────────────
+
+        if (dateChanged && !sameMonthDateChange) {
+            // Cross-month: reverse old total, apply to new month total
             items.push({
                 Update: {
                     TableName: TABLE_NAME,
@@ -184,6 +243,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
                 }
             });
         } else if (creditDiff !== 0 || debitDiff !== 0) {
+            // Same month (inc. same-month date change) — apply diff to total
             items.push({
                 Update: {
                     TableName: TABLE_NAME,
