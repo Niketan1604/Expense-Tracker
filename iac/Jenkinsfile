@@ -73,6 +73,19 @@ pipeline {
     }
 
     // ─────────────────────────────────────────────────────────────
+    // STAGE 4 — Security Audit
+    // Scans dependencies for known CVEs.
+    // Only fails on HIGH or CRITICAL severity vulnerabilities.
+    // ─────────────────────────────────────────────────────────────
+    stage('Security Audit') {
+      steps {
+        dir('iac') {
+          sh 'npm audit --audit-level=high'
+        }
+      }
+    }
+  
+    // ─────────────────────────────────────────────────────────────
     // STAGE 4 — Read SSM Config
     // Reads values from SSM that CDK needs at synth time.
     // These cannot be read inside CDK itself because they live
