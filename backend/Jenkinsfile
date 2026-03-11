@@ -1,3 +1,4 @@
+/* groovylint-disable LineLength */
 pipeline {
   agent any
 
@@ -13,7 +14,6 @@ pipeline {
   }
 
   stages {
-
     // ─────────────────────────────────────────────────────────────
     // STAGE 1 — Setup Environment
     // ─────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ pipeline {
     stage('Unit Tests') {
       steps {
         dir('backend') {
-          sh 'npx jest --selectProjects unit --ci --passWithNoTests'
+          sh 'npx jest --selectProjects unit --ci --coverage --coverageReporters=lcov --passWithNoTests'
         }
       }
     }
@@ -161,7 +161,7 @@ pipeline {
       steps {
         timeout(time: 30, unit: 'MINUTES') {
           input(
-            message: "Deploy backend to PRODUCTION?",
+            message: 'Deploy backend to PRODUCTION?',
             ok: 'Yes, deploy'
           )
         }
@@ -234,7 +234,6 @@ pipeline {
         }
       }
     }
-
   }
 
   post {
@@ -253,5 +252,4 @@ pipeline {
       echo "✗ Backend deploy to ${env.ENV_NAME} failed"
     }
   }
-
 }

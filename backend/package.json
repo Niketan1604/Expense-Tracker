@@ -14,7 +14,8 @@
     "test:integration": "jest --selectProjects integration --runInBand",
     "test:all": "jest --runInBand",
     "test:watch": "jest --selectProjects unit --watch",
-    "test:coverage": "jest --selectProjects unit --coverage"
+    "test:coverage": "jest --selectProjects unit --coverage",
+    "test:allCoverage": "jest --runInBand --coverage"
   },
   "dependencies": {
     "@aws-lambda-powertools/logger": "^2.31.0",
