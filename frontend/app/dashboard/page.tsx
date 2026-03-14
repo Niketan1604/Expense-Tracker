@@ -5,6 +5,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useMonthlyTotal, useTopCategories, useTrend, useCategories } from '@/hooks/useApi'
 import { formatAmountCompact, formatMonth, formatMonthShort, currentMonth, prevMonth, nextMonth } from '@/lib/format'
 
+interface ChartPayloadItem { name: string; color: string; value: number }
+interface ChartTipProps { active?: boolean; payload?: ChartPayloadItem[]; label?: string }
+
 function MonthPicker({ value, onChange }: { value: string; onChange: (m: string) => void }) {
   return (
     <div className="month-stepper">
@@ -37,12 +40,12 @@ function StatCard({ label, value, sub, icon: Icon, iconBg, iconColor, valueColor
   )
 }
 
-function ChartTip({ active, payload, label }: any) {
+function ChartTip({ active, payload, label }: ChartTipProps ) {
   if (!active || !payload?.length) return null
   return (
     <div className="card px-3 py-2.5 text-xs" style={{ boxShadow: 'var(--shadow-lg)', minWidth: '120px' }}>
       <p className="font-semibold mb-1.5" style={{ color: 'var(--text)' }}>{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p: ChartPayloadItem) => (
         <div key={p.name} className="flex justify-between gap-4">
           <span style={{ color: p.color }}>{p.name}</span>
           <span className="font-mono font-bold" style={{ color: 'var(--text)' }}>{formatAmountCompact(p.value)}</span>
