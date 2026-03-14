@@ -28,7 +28,7 @@ client.interceptors.response.use(
   (err) => Promise.reject(new Error(err.response?.data?.message ?? err.message ?? 'Unknown error'))
 )
 
-function qp(obj: Record<string, unknown>): AxiosRequestConfig {
+function qp(obj: Record<string, unknown> | object): AxiosRequestConfig {
   const clean: Record<string, string> = {}
   for (const [k, v] of Object.entries(obj))
     if (v != null && v !== '') clean[k] = String(v)
