@@ -3,32 +3,34 @@ import { useState, useEffect } from 'react'
 import { Save, User, CheckCircle2 } from 'lucide-react'
 import { useProfile } from '@/hooks/useApi'
 import { userApi } from '@/lib/api'
+import { useAuth } from '@/hooks/useAuth'
 
 const CURRENCIES = ['INR','USD','EUR','GBP','AUD','CAD','SGD','JPY']
-const TIMEZONES  = ['Asia/Kolkata','America/New_York','America/Los_Angeles','America/Chicago',
-                    'Europe/London','Europe/Paris','Asia/Tokyo','Asia/Singapore','Australia/Sydney']
 
 export default function ProfilePage() {
   const { data: profile, loading, refetch } = useProfile()
+  const { user: authUser } = useAuth()
   const [name, setName]         = useState('')
   const [currency, setCurrency] = useState('INR')
-  const [timezone, setTimezone] = useState('Asia/Kolkata')
   const [saving, setSaving]     = useState(false)
   const [success, setSuccess]   = useState(false)
   const [error, setError]       = useState('')
 
   useEffect(() => {
     if (profile) {
-      setName(profile.name)
-      setCurrency(profile.currency)
-      setTimezone(profile.timezone)
+      // Profile exists in DB — use it
+      setName(profile.name || authUser?.username || '')
+      setCurrency(profile.currency || 'INR')
+    } else if (!loading && authUser) {
+      // First time — no profile yet, pre-fill from Cognito session
+      setName(authUser.username || '')
     }
-  }, [profile])
+  }, [profile, loading, authUser])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError(''); setSuccess(false)
     try {
-      await userApi.updateProfile({ name, currency, timezone })
+      await userApi.updateProfile({ name, currency });
       setSuccess(true); refetch()
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to save') }
@@ -68,7 +70,6 @@ export default function ProfilePage() {
           <div className="w-full mt-6 pt-5 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
             {[
               { label: 'Currency', value: profile?.currency },
-              { label: 'Timezone', value: profile?.timezone },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between text-sm">
                 <span style={{ color: 'var(--muted)' }}>{label}</span>
@@ -105,13 +106,6 @@ export default function ProfilePage() {
               <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>Currency</label>
               <select value={currency} onChange={e => setCurrency(e.target.value)} className="fm-input rounded-xl">
                 {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>Timezone</label>
-              <select value={timezone} onChange={e => setTimezone(e.target.value)} className="fm-input rounded-xl">
-                {TIMEZONES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
 

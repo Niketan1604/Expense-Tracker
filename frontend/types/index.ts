@@ -38,7 +38,6 @@ export interface UserProfile {
   email: string;
   name: string;
   currency: string;
-  timezone: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -113,7 +112,6 @@ export interface SetBudgetBody {
 export interface UpdateProfileBody {
   name: string;
   currency: string;
-  timezone: string;
 }
 
 // ── Query param types ──────────────────────────────────────────────────────────
