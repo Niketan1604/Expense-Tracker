@@ -20,7 +20,7 @@ jest.mock('../../src/shared/auth', () => ({
     getUserEmail: jest.fn().mockReturnValue(TEST_EMAIL)
 }));
 
-const VALID_BODY = { name: 'Niketan', currency: 'INR', timezone: 'Asia/Kolkata' };
+const VALID_BODY = { name: 'Niketan', currency: 'INR' };
 
 const putProfile = async (body: Record<string, unknown>, expectStatus = 200) => {
     const result = await putUserProfileHandler(buildEvent({ body })) as any;
@@ -52,7 +52,6 @@ describe('PUT /user/profile — integration', () => {
         expect(profile.email).toBe(TEST_EMAIL);
         expect(profile.name).toBe('Niketan');
         expect(profile.currency).toBe('INR');
-        expect(profile.timezone).toBe('Asia/Kolkata');
         expect(profile.createdAt).toBeDefined();
         expect(profile.updatedAt).toBeDefined();
     });
@@ -77,11 +76,10 @@ describe('PUT /user/profile — integration', () => {
         expect(profile.currency).toBe('INR');
     });
 
-    it('trims whitespace from name, currency, timezone', async () => {
-        const profile = await putProfile({ name: '  Niketan  ', currency: ' INR ', timezone: ' Asia/Kolkata ' });
+    it('trims whitespace from name, currency', async () => {
+        const profile = await putProfile({ name: '  Niketan  ', currency: ' INR ' });
         expect(profile.name).toBe('Niketan');
         expect(profile.currency).toBe('INR');
-        expect(profile.timezone).toBe('Asia/Kolkata');
     });
 
     it('preserves original createdAt on subsequent updates', async () => {
@@ -106,7 +104,6 @@ describe('PUT /user/profile — integration', () => {
         const updated = await putProfile({ ...VALID_BODY, name: 'New Name' });
         expect(updated.name).toBe('New Name');
         expect(updated.currency).toBe('INR');
-        expect(updated.timezone).toBe('Asia/Kolkata');
     });
 
     it('persists changes to DynamoDB', async () => {
@@ -117,26 +114,20 @@ describe('PUT /user/profile — integration', () => {
     });
 
     it('returns 400 when name is missing', async () => {
-        const result = await putUserProfileHandler(buildEvent({ body: { currency: 'INR', timezone: 'Asia/Kolkata' } })) as any;
+        const result = await putUserProfileHandler(buildEvent({ body: { currency: 'INR' } })) as any;
         expect(result.statusCode).toBe(400);
         expect(JSON.parse(result.body).message).toMatch(/name/i);
     });
 
     it('returns 400 when name is empty string', async () => {
-        const result = await putUserProfileHandler(buildEvent({ body: { name: '', currency: 'INR', timezone: 'Asia/Kolkata' } })) as any;
+        const result = await putUserProfileHandler(buildEvent({ body: { name: '', currency: 'INR' } })) as any;
         expect(result.statusCode).toBe(400);
     });
 
     it('returns 400 when currency is missing', async () => {
-        const result = await putUserProfileHandler(buildEvent({ body: { name: 'Niketan', timezone: 'Asia/Kolkata' } })) as any;
+        const result = await putUserProfileHandler(buildEvent({ body: { name: 'Niketan' } })) as any;
         expect(result.statusCode).toBe(400);
         expect(JSON.parse(result.body).message).toMatch(/currency/i);
-    });
-
-    it('returns 400 when timezone is missing', async () => {
-        const result = await putUserProfileHandler(buildEvent({ body: { name: 'Niketan', currency: 'INR' } })) as any;
-        expect(result.statusCode).toBe(400);
-        expect(JSON.parse(result.body).message).toMatch(/timezone/i);
     });
 
     it('returns 400 for invalid JSON body', async () => {
@@ -172,7 +163,6 @@ describe('GET /user/profile — integration', () => {
         expect(data.userId).toBe(TEST_USER_ID);
         expect(data.name).toBe('Niketan');
         expect(data.currency).toBe('INR');
-        expect(data.timezone).toBe('Asia/Kolkata');
         expect(data.email).toBe(TEST_EMAIL);
     });
 

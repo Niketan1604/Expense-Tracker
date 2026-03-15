@@ -12,7 +12,6 @@ const logger = createLogger('putUserProfile');
 interface PutProfileBody {
     name?: string;
     currency?: string;
-    timezone?: string;
 }
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
@@ -41,16 +40,13 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             return error(STATUS.BAD_REQUEST, 'Invalid JSON body');
         }
 
-        const { name, currency, timezone } = body;
+        const { name, currency } = body;
 
         if (!name || typeof name !== 'string' || name.trim() === '') {
             return error(STATUS.BAD_REQUEST, 'name is required');
         }
         if (!currency || typeof currency !== 'string' || currency.trim() === '') {
             return error(STATUS.BAD_REQUEST, 'currency is required');
-        }
-        if (!timezone || typeof timezone !== 'string' || timezone.trim() === '') {
-            return error(STATUS.BAD_REQUEST, 'timezone is required');
         }
 
         const now = new Date().toISOString();
@@ -74,7 +70,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             email,
             name: name.trim(),
             currency: currency.trim().toUpperCase(),
-            timezone: timezone.trim(),
             createdAt,
             updatedAt: now
         };

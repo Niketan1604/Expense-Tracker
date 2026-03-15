@@ -8,12 +8,12 @@ import { buildEvent, TEST_USER_ID, TEST_EMAIL } from '../../helpers/eventBuilder
 const ddbMock = mockClient(DynamoDBDocumentClient);
 
 jest.mock('../../../src/shared/db', () => {
-  const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-  const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-  return {
-    docClient: DynamoDBDocumentClient.from(new DynamoDBClient({})),
-    TABLE_NAME: 'test-table'
-  };
+    const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+    const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
+    return {
+        docClient: DynamoDBDocumentClient.from(new DynamoDBClient({})),
+        TABLE_NAME: 'test-table'
+    };
 });
 
 jest.mock('../../../src/shared/logger', () => ({
@@ -37,7 +37,6 @@ const MOCK_PROFILE = {
     email: TEST_EMAIL,
     name: 'Niketan',
     currency: 'INR',
-    timezone: 'Asia/Kolkata',
     createdAt: '2025-06-01T00:00:00.000Z',
     updatedAt: '2025-06-01T00:00:00.000Z'
 };
@@ -75,7 +74,6 @@ describe('getUserProfile', () => {
             expect(body.data.userId).toBe(TEST_USER_ID);
             expect(body.data.name).toBe('Niketan');
             expect(body.data.currency).toBe('INR');
-            expect(body.data.timezone).toBe('Asia/Kolkata');
         });
 
         it('strips PK and SK from response', async () => {

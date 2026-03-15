@@ -489,7 +489,7 @@ describe('putUserProfile — branch: body null and email nullish', () => {
         ddbMock.on(PutCommand).resolves({});
 
         const result = await handler(buildEvent({
-            body: { name: 'Niketan', currency: 'INR', timezone: 'Asia/Kolkata' }
+            body: { name: 'Niketan', currency: 'INR' }
         })) as any;
 
         expect(result.statusCode).toBe(200);

@@ -8,12 +8,12 @@ import { buildEvent, TEST_USER_ID, TEST_EMAIL } from '../../helpers/eventBuilder
 const ddbMock = mockClient(DynamoDBDocumentClient);
 
 jest.mock('../../../src/shared/db', () => {
-  const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-  const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
-  return {
-    docClient: DynamoDBDocumentClient.from(new DynamoDBClient({})),
-    TABLE_NAME: 'test-table'
-  };
+    const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+    const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
+    return {
+        docClient: DynamoDBDocumentClient.from(new DynamoDBClient({})),
+        TABLE_NAME: 'test-table'
+    };
 });
 
 jest.mock('../../../src/shared/logger', () => ({
@@ -29,7 +29,7 @@ import { handler } from '../../../src/user/putUserProfile/index';
 import * as auth from '../../../src/shared/auth';
 
 // ── Test data ─────────────────────────────────────────────
-const VALID_BODY = { name: 'Niketan', currency: 'INR', timezone: 'Asia/Kolkata' };
+const VALID_BODY = { name: 'Niketan', currency: 'INR' };
 
 describe('putUserProfile', () => {
     beforeEach(() => {
@@ -48,26 +48,20 @@ describe('putUserProfile', () => {
 
     describe('Validation', () => {
         it('returns 400 when name is missing', async () => {
-            const result = await handler(buildEvent({ body: { currency: 'INR', timezone: 'Asia/Kolkata' } })) as any;
+            const result = await handler(buildEvent({ body: { currency: 'INR' } })) as any;
             expect(result.statusCode).toBe(400);
             expect(JSON.parse(result.body).message).toMatch(/name/i);
         });
 
         it('returns 400 when name is empty string', async () => {
-            const result = await handler(buildEvent({ body: { name: '', currency: 'INR', timezone: 'Asia/Kolkata' } })) as any;
+            const result = await handler(buildEvent({ body: { name: '', currency: 'INR' } })) as any;
             expect(result.statusCode).toBe(400);
         });
 
         it('returns 400 when currency is missing', async () => {
-            const result = await handler(buildEvent({ body: { name: 'Niketan', timezone: 'Asia/Kolkata' } })) as any;
+            const result = await handler(buildEvent({ body: { name: 'Niketan' } })) as any;
             expect(result.statusCode).toBe(400);
             expect(JSON.parse(result.body).message).toMatch(/currency/i);
-        });
-
-        it('returns 400 when timezone is missing', async () => {
-            const result = await handler(buildEvent({ body: { name: 'Niketan', currency: 'INR' } })) as any;
-            expect(result.statusCode).toBe(400);
-            expect(JSON.parse(result.body).message).toMatch(/timezone/i);
         });
 
         it('returns 400 for invalid JSON body', async () => {
@@ -88,7 +82,6 @@ describe('putUserProfile', () => {
             expect(body.data.userId).toBe(TEST_USER_ID);
             expect(body.data.name).toBe('Niketan');
             expect(body.data.currency).toBe('INR');
-            expect(body.data.timezone).toBe('Asia/Kolkata');
             expect(body.data.createdAt).toBeDefined();
             expect(body.data.updatedAt).toBeDefined();
         });
