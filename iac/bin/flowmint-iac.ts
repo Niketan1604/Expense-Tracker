@@ -1,4 +1,5 @@
 import { App } from 'aws-cdk-lib';
+import { execSync } from 'child_process';
 import { FlowmintIamStack } from '../lib/flowmint-iam-stack';
 import { FlowmintDatabaseStack } from '../lib/flowmint-database-stack';
 import { FlowmintCognitoStack } from '../lib/flowmint-cognito-stack';
@@ -16,6 +17,18 @@ if (!cloudfrontDomain) {
     'Pass it via: --context cloudfrontDomain=<value>. '
   );
 }
+
+const getSecureParam = (name: string): string => {
+  const result = execSync(
+    `aws ssm get-parameter --name ${name} --with-decryption --query Parameter.Value --output text --region ${process.env.CDK_DEFAULT_REGION ?? 'ap-south-1'}`,
+    { encoding: 'utf-8' }
+  ).trim();
+  if (!result) throw new Error(`SSM parameter ${name} not found or empty`);
+  return result;
+};
+
+const googleClientId = getSecureParam('/flowmint/cognito/google-client-id');
+const googleClientSecret = getSecureParam('/flowmint/cognito/google-client-secret');
 
 const iamStack = new FlowmintIamStack(app, `${appName}-${envName}-iam`, {
   appName,
@@ -64,6 +77,8 @@ const cognitoStack = new FlowmintCognitoStack(app, `${appName}-${envName}-cognit
   appName,
   envName,
   cloudfrontDomain,
+  googleClientId,
+  googleClientSecret,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION

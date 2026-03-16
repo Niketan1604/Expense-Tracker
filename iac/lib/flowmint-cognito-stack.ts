@@ -8,14 +8,14 @@ interface CognitoStackProps extends StackProps {
     appName: string;
     envName: string;
     cloudfrontDomain: string;
+    googleClientId: string;
+    googleClientSecret: string;
 }
 
 export class FlowmintCognitoStack extends Stack {
     constructor(scope: Construct, id: string, props: CognitoStackProps) {
         super(scope, id, props);
-        const { appName, envName, cloudfrontDomain } = props;
-        const googleClientId = ssm.StringParameter.valueForStringParameter(this, '/flowmint/cognito/google-client-id');
-        const googleClientSecret = cdk.SecretValue.ssmSecure('/flowmint/cognito/google-client-secret');
+        const { appName, envName, cloudfrontDomain, googleClientId, googleClientSecret } = props;
 
         const exportParam = (name: string, value: string) => {
             new ssm.StringParameter(this, `SSMParam-${name}`, {
@@ -125,7 +125,7 @@ export class FlowmintCognitoStack extends Stack {
         const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
             userPool,
             clientId: googleClientId,
-            clientSecretValue: googleClientSecret,
+            clientSecretValue: cdk.SecretValue.unsafePlainText(googleClientSecret),
             scopes: ['profile', 'email', 'openid'],
             attributeMapping: {
                 email: cognito.ProviderAttribute.GOOGLE_EMAIL,
