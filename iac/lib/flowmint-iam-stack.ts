@@ -231,7 +231,9 @@ export class FlowmintIamStack extends Stack {
       ],
       resources: [
         `arn:aws:ssm:${this.region}:${this.account}:parameter/${appName}/${envName}/*`,
-        `arn:aws:ssm:us-east-1:${this.account}:parameter/${appName}/${envName}/*`
+        `arn:aws:ssm:us-east-1:${this.account}:parameter/${appName}/${envName}/*`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/${appName}/cognito/google-client-id`,
+        `arn:aws:ssm:${this.region}:${this.account}:parameter/${appName}/cognito/google-client-secret`
       ]
     }));
 

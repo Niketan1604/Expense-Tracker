@@ -20,6 +20,7 @@
     "typescript": "~5.9.3"
   },
   "dependencies": {
+    "@aws-sdk/client-ssm": "^3.1009.0",
     "aws-cdk-lib": "^2.237.1",
     "constructs": "^10.0.0"
   }
