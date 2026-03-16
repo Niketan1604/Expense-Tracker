@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, User, Eye, EyeOff, Wallet, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { signInWithRedirect } from 'aws-amplify/auth'
 
 type Step = 'form' | 'confirm'
 
@@ -17,6 +18,7 @@ export default function SignupPage() {
   const [code, setCode]         = useState('')
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError]       = useState('')
   const [resent, setResent]     = useState(false)
 
@@ -46,6 +48,16 @@ export default function SignupPage() {
       await resendCode(email)
       setResent(true); setTimeout(() => setResent(false), 4000)
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to resend') }
+  }
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true); setError('')
+    try {
+      await signInWithRedirect({ provider: 'Google' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign in failed')
+      setGoogleLoading(false)
+    }
   }
 
   return (
@@ -100,39 +112,65 @@ export default function SignupPage() {
           {resent && <div className="alert-success mb-5">Code resent to {email}</div>}
 
           {step === 'form' ? (
-            <form onSubmit={handleSignUp} className="space-y-4">
-              {[
-                { label: 'Full Name',      Icon: User, type: 'text',  val: name,     set: setName,     ph: 'Your name' },
-                { label: 'Email Address',  Icon: Mail, type: 'email', val: email,    set: setEmail,    ph: 'you@example.com' },
-              ].map(({ label, Icon, type, val, set, ph }) => (
-                <div key={label}>
-                  <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>{label}</label>
-                  <div className="relative">
-                    <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted)' }} />
-                    <input type={type} value={val} onChange={e => set(e.target.value)} required placeholder={ph}
-                      className="fm-input pl-10 py-3 rounded-2xl" />
-                  </div>
-                </div>
-              ))}
+            <>
+              {/* Google button */}
+              <button onClick={handleGoogle} disabled={googleLoading || loading}
+                className="w-full flex items-center justify-center gap-3 py-3 rounded-2xl font-semibold text-sm mb-5 transition-all disabled:opacity-50"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--mint)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
+                {googleLoading ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-mint-500" />
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                )}
+                {googleLoading ? 'Redirecting…' : 'Continue with Google'}
+              </button>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted)' }} />
-                  <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                    required minLength={8} placeholder="Min. 8 characters"
-                    className="fm-input pl-10 pr-10 py-3 rounded-2xl" />
-                  <button type="button" onClick={() => setShowPw(!showPw)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }}>
-                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+              {/* Divider */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--muted)' }}>or</span>
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
               </div>
 
-              <button type="submit" disabled={loading} className="btn btn-primary w-full py-3.5 rounded-2xl text-sm mt-2">
-                {loading ? 'Creating account…' : <><span>Get Started</span><ArrowRight className="w-4 h-4" /></>}
-              </button>
-            </form>
+              <form onSubmit={handleSignUp} className="space-y-4">
+                {[
+                  { label: 'Full Name',     Icon: User, type: 'text',  val: name,  set: setName,  ph: 'Your name' },
+                  { label: 'Email Address', Icon: Mail, type: 'email', val: email, set: setEmail, ph: 'you@example.com' },
+                ].map(({ label, Icon, type, val, set, ph }) => (
+                  <div key={label}>
+                    <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>{label}</label>
+                    <div className="relative">
+                      <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted)' }} />
+                      <input type={type} value={val} onChange={e => set(e.target.value)} required placeholder={ph}
+                        className="fm-input pl-10 py-3 rounded-2xl" />
+                    </div>
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--muted)' }} />
+                    <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                      required minLength={8} placeholder="Min. 8 characters"
+                      className="fm-input pl-10 pr-10 py-3 rounded-2xl" />
+                    <button type="button" onClick={() => setShowPw(!showPw)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }}>
+                      {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <button type="submit" disabled={loading || googleLoading} className="btn btn-primary w-full py-3.5 rounded-2xl text-sm mt-2">
+                  {loading ? 'Creating account…' : <><span>Get Started</span><ArrowRight className="w-4 h-4" /></>}
+                </button>
+              </form>
+            </>
           ) : (
             <form onSubmit={handleConfirm} className="space-y-5">
               <div>
