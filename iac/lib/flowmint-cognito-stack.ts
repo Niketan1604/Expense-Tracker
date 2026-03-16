@@ -2,6 +2,7 @@ import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as cdk from 'aws-cdk-lib';
 
 interface CognitoStackProps extends StackProps {
     appName: string;
@@ -13,6 +14,8 @@ export class FlowmintCognitoStack extends Stack {
     constructor(scope: Construct, id: string, props: CognitoStackProps) {
         super(scope, id, props);
         const { appName, envName, cloudfrontDomain } = props;
+        const googleClientId = ssm.StringParameter.valueForStringParameter(this, '/flowmint/cognito/google-client-id');
+        const googleClientSecret = cdk.SecretValue.ssmSecure('/flowmint/cognito/google-client-secret');
 
         const exportParam = (name: string, value: string) => {
             new ssm.StringParameter(this, `SSMParam-${name}`, {
@@ -91,7 +94,9 @@ export class FlowmintCognitoStack extends Stack {
                 },
                 callbackUrls: [
                     `https://${cloudfrontDomain}/`,
+                    `https://${cloudfrontDomain}/auth/callback`,
                     `http://localhost:3000`, // Callback URL for local development
+                    `http://localhost:3000/auth/callback`, // Callback URL for local development with auth callback path
                 ],
                 logoutUrls: [
                     `https://${cloudfrontDomain}/`,
@@ -106,6 +111,7 @@ export class FlowmintCognitoStack extends Stack {
             },
             supportedIdentityProviders: [
                 cognito.UserPoolClientIdentityProvider.COGNITO, // Enable Cognito user pool as an identity provider for the client
+                cognito.UserPoolClientIdentityProvider.GOOGLE, // Enable Google as an identity provider for the client
             ],
         });
 
@@ -116,6 +122,18 @@ export class FlowmintCognitoStack extends Stack {
             },
         });
 
+        const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
+            userPool,
+            clientId: googleClientId,
+            clientSecretValue: googleClientSecret,
+            scopes: ['profile', 'email', 'openid'],
+            attributeMapping: {
+                email: cognito.ProviderAttribute.GOOGLE_EMAIL,
+                fullname: cognito.ProviderAttribute.GOOGLE_NAME,
+            }
+        });
+
+        userPoolClient.node.addDependency(googleProvider);
         exportParam('user-pool-id', userPool.userPoolId);
         exportParam('app-client-id', userPoolClient.userPoolClientId);
         exportParam('issuer-url', userPool.userPoolProviderUrl);
