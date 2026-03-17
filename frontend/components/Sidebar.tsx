@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { LayoutDashboard, ArrowLeftRight, Tag, Target, User, LogOut, Wallet, Sun, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -16,7 +16,6 @@ const NAV = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const router   = useRouter()
   const { signOut } = useAuth()
   const { isDark, toggle } = useTheme()
 
@@ -25,7 +24,6 @@ export function Sidebar() {
 
   const handleSignOut = async () => {
     await signOut()
-    router.replace('/login')
   }
 
   return (

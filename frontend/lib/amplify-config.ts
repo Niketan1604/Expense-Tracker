@@ -5,18 +5,25 @@ let configured = false
 export function configureAmplify() {
     if (configured) return
 
+    const userPoolId  = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID!
+    const userPoolClientId    = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!
+    const domain      = process.env.NEXT_PUBLIC_COGNITO_DOMAIN!
+    const redirectSignIn  = process.env.NEXT_PUBLIC_REDIRECT_URI!
+    const redirectSignOut = process.env.NEXT_PUBLIC_REDIRECT_SIGN_OUT_URI
+      ?? redirectSignIn.replace('/auth/callback', '/')
+
     Amplify.configure({
         Auth: {
             Cognito: {
-                userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID!,
-                userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
+                userPoolId,
+                userPoolClientId,
                 loginWith: {
                     email: true,
                     oauth: {
-                        domain: process.env.NEXT_PUBLIC_COGNITO_DOMAIN!.replace('https://', ''),
+                        domain,
                         scopes: ['email', 'openid', 'profile'],
-                        redirectSignIn: [process.env.NEXT_PUBLIC_REDIRECT_URI!],
-                        redirectSignOut: [process.env.NEXT_PUBLIC_REDIRECT_URI!.replace('/auth/callback', '')],
+                        redirectSignIn:  [redirectSignIn],
+                        redirectSignOut: [redirectSignOut],
                         responseType: 'code',
                     },
                 },

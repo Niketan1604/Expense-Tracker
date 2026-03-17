@@ -99,7 +99,7 @@ CI/CD           → Jenkins on EC2 (i-024a4bc81e88635ab, ap-south-1)
   /flowmint/dev/cognito/user-pool-id
   /flowmint/dev/cognito/app-client-id
   /flowmint/dev/cognito/issuer-url
-  /flowmint/dev/cognito/hosted-ui-url
+  /flowmint/dev/cognito/hosted-domain
   ```
 - **`cloudfrontDomain` prop** — passed from `bin/flowmint-iac.ts` via CDK context:
   ```typescript
@@ -481,7 +481,7 @@ All parameters in ap-south-1 unless noted:
 /flowmint/dev/cognito/user-pool-id
 /flowmint/dev/cognito/app-client-id
 /flowmint/dev/cognito/issuer-url
-/flowmint/dev/cognito/hosted-ui-url
+/flowmint/dev/cognito/hosted-domain
 /flowmint/dev/edge/cloudfront-domain    ← us-east-1
 /flowmint/dev/edge/distribution-id      ← us-east-1
 /flowmint/dev/backend/api-endpoint      ← written by SAM deploy

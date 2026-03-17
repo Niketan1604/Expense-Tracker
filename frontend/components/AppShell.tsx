@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 
-const PUBLIC = ['/login', '/signup']
+const PUBLIC = ['/login', '/signup', '/auth/callback']
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -19,6 +19,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (user  &&  isPublic) router.replace('/')
   }, [user, loading, isPublic, router])
 
+  // Never block public routes (login, signup, auth/callback) with a loading screen.
+  // /auth/callback in particular needs to mount immediately so its Hub listener
+  // can catch the OAuth signedIn event before it fires.
+  if (isPublic) return <>{children}</>
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
@@ -29,8 +34,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     )
   }
-
-  if (isPublic) return <>{children}</>
   if (!user)    return null
 
   return (

@@ -153,7 +153,7 @@ pipeline {
 
           env.CLOUDFRONT_DISTRIBUTION_ID = getParam('edge/distribution-id', 'us-east-1')
           env.CLOUDFRONT_DOMAIN          = getParam('edge/cloudfront-domain', 'us-east-1')
-          env.NEXT_PUBLIC_COGNITO_DOMAIN = getParam('cognito/hosted-ui-url')
+          env.NEXT_PUBLIC_COGNITO_DOMAIN = getParam('cognito/hosted-domain')
           env.NEXT_PUBLIC_REDIRECT_URI       = "https://${env.CLOUDFRONT_DOMAIN}/auth/callback"
 
           // echo "API Endpoint:  ${env.NEXT_PUBLIC_API_ENDPOINT}"
