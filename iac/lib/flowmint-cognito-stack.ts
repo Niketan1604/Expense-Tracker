@@ -137,6 +137,6 @@ export class FlowmintCognitoStack extends Stack {
         exportParam('user-pool-id', userPool.userPoolId);
         exportParam('app-client-id', userPoolClient.userPoolClientId);
         exportParam('issuer-url', userPool.userPoolProviderUrl);
-        exportParam('hosted-ui-url', userPoolDomain.baseUrl());
+        exportParam('hosted-domain', userPoolDomain.domainName);
     }
 }
