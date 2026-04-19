@@ -12,11 +12,6 @@ const authComplete = new Promise<AuthResult>((resolve) => {
   resolveAuth = resolve;
 });
 
-Hub.listen("auth", ({ payload }) => {
-  if (payload.event === "signedIn") resolveAuth("success");
-  if (payload.event === "signInWithRedirect_failure") resolveAuth("failure");
-});
-
 export default function AuthCallbackPage() {
   const handled = useRef(false);
   const [status, setStatus] = useState("Completing sign-in…");
@@ -24,6 +19,12 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     if (handled.current) return;
     handled.current = true;
+
+    const unsubscribe = Hub.listen("auth", ({ payload }) => {
+      if (payload.event === "signedIn") resolveAuth("success");
+      if (payload.event === "signInWithRedirect_failure")
+        resolveAuth("failure");
+    });
 
     const run = async () => {
       try {
@@ -68,7 +69,7 @@ export default function AuthCallbackPage() {
       }
     };
 
-    run();
+    run().finally(() => unsubscribe());
   }, []);
 
   return (
