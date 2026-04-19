@@ -155,10 +155,13 @@ pipeline {
           env.CLOUDFRONT_DOMAIN          = getParam('edge/cloudfront-domain', 'us-east-1')
           env.NEXT_PUBLIC_COGNITO_DOMAIN = getParam('cognito/hosted-domain')
           env.NEXT_PUBLIC_REDIRECT_URI       = "https://${env.CLOUDFRONT_DOMAIN}/auth/callback"
+          env.NEXT_PUBLIC_REDIRECT_SIGN_OUT_URI = "https://${env.CLOUDFRONT_DOMAIN}/"
 
-          // echo "API Endpoint:  ${env.NEXT_PUBLIC_API_ENDPOINT}"
+          echo "API Endpoint:  ${env.NEXT_PUBLIC_API_ENDPOINT}"
           echo "S3 Bucket:     ${env.S3_BUCKET_NAME}"
           echo "CloudFront:      https://${env.CLOUDFRONT_DOMAIN}"
+          echo "Redirect URI:    ${env.NEXT_PUBLIC_REDIRECT_URI}"
+          echo "Sign-Out URI:    ${env.NEXT_PUBLIC_REDIRECT_SIGN_OUT_URI}"
         }
       }
     }
