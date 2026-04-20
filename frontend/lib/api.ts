@@ -14,11 +14,17 @@ const client = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_ENDPOINT })
 
 // Auto-inject JWT
 client.interceptors.request.use(async (config) => {
-  const token = await getIdToken()
+  const token = await getIdTokenWithTimeout()
   config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
+async function getIdTokenWithTimeout(): Promise<string> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Auth timeout')), 5000)
+  )
+  return Promise.race([getIdToken(), timeout])
+}
 // Unwrap { data: <payload> } envelope + normalise errors
 client.interceptors.response.use(
   (res) => {

@@ -4,18 +4,13 @@ import { Wallet } from "lucide-react";
 import { fetchAuthSession, signInWithRedirect } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { userApi } from "@/lib/api";
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation";
 
 type AuthResult = "success" | "failure";
 
 let resolveAuth: (result: AuthResult) => void;
 const authComplete = new Promise<AuthResult>((resolve) => {
   resolveAuth = resolve;
-});
-
-Hub.listen("auth", ({ payload }) => {
-  if (payload.event === "signedIn") resolveAuth("success");
-  if (payload.event === "signInWithRedirect_failure") resolveAuth("failure");
 });
 
 export default function AuthCallbackPage() {
@@ -70,7 +65,13 @@ export default function AuthCallbackPage() {
       }
     };
 
-    run();
+    const unsubscribe = Hub.listen("auth", ({ payload }) => {
+        if (payload.event === "signedIn") resolveAuth("success");
+        if (payload.event === "signInWithRedirect_failure")
+          resolveAuth("failure");
+      });
+
+    run().finally(() => unsubscribe());
   }, []);
 
   return (
