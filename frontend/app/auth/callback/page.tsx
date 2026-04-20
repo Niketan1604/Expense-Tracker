@@ -4,6 +4,7 @@ import { Wallet } from "lucide-react";
 import { fetchAuthSession, signInWithRedirect } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { userApi } from "@/lib/api";
+import { useRouter } from 'next/navigation'
 
 type AuthResult = "success" | "failure";
 
@@ -18,6 +19,7 @@ Hub.listen("auth", ({ payload }) => {
 });
 
 export default function AuthCallbackPage() {
+  const router = useRouter();
   const handled = useRef(false);
   const [status, setStatus] = useState("Completing sign-in…");
 
@@ -59,7 +61,7 @@ export default function AuthCallbackPage() {
 
       if (result === "success") {
         await bootstrapProfile();
-        window.location.href = "/";
+        router.replace("/");
       } else {
         setStatus("Sign in failed. Redirecting…");
         setTimeout(() => {
