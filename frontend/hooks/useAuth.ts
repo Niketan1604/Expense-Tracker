@@ -4,20 +4,65 @@ import { getAuthUser, authSignIn, authSignOut, authSignUp, authConfirmSignUp, au
 
 interface AuthUser { userId: string; username: string }
 
+import { usePathname } from 'next/navigation'
+
+/**
+ * Clears stale Amplify OAuth PKCE state.
+ */
+function clearStaleOAuthState() {
+  try {
+    const keysToRemove: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (
+        key.includes('oAuthPKCE') ||
+        key.includes('oAuthState') ||
+        key.includes('oAuthSignIn') ||
+        key.includes('inflightOAuth')
+      )) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+  } catch { }
+}
+
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const pathname = usePathname()
 
   const fetchUser = useCallback(async () => {
     try {
-      const u = await getAuthUser()
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 2000)
+      )
+      
+      let u;
+      try {
+        u = await Promise.race([getAuthUser(), timeoutPromise])
+      } catch (err) {
+        if (err instanceof Error && err.message === 'AUTH_TIMEOUT') {
+          // If it hangs for 2s AND we aren't on the callback page, it's a stale state
+          if (pathname !== '/auth/callback') {
+            clearStaleOAuthState()
+            u = await getAuthUser() // Retry instantly, should succeed/fail immediately
+          } else {
+            // If we ARE on the callback page, just let it throw or return null
+            throw err
+          }
+        } else {
+          throw err
+        }
+      }
+
       setUser({ userId: u.userId, username: u.username })
     } catch {
       setUser(null)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pathname])
 
   useEffect(() => { fetchUser() }, [fetchUser])
 
