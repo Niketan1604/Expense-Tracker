@@ -16,7 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return
     if (!user && !isPublic) router.replace('/login')
-    if (user  &&  isPublic) router.replace('/')
+    if (user  &&  isPublic) router.replace('/dashboard')
   }, [user, loading, isPublic, router])
 
   // Never block public routes (login, signup, auth/callback) with a loading screen.

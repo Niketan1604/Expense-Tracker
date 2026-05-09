@@ -56,7 +56,7 @@ export default function AuthCallbackPage() {
 
       if (result === "success") {
         await bootstrapProfile();
-        router.replace("/");
+        router.replace("/dashboard");
       } else {
         setStatus("Sign in failed. Redirecting…");
         setTimeout(() => {
