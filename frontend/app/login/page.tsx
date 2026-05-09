@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true); setError('')
     try {
       await signIn(email, password)
-      router.replace('/')
+      router.replace('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed')
     } finally { setLoading(false) }

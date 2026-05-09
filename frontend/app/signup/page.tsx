@@ -38,7 +38,7 @@ export default function SignupPage() {
     try {
       await confirmSignUp(email, code)
       await signIn(email, password)
-      router.replace('/')
+      router.replace('/dashboard')
     } catch (err) { setError(err instanceof Error ? err.message : 'Verification failed') }
     finally { setLoading(false) }
   }

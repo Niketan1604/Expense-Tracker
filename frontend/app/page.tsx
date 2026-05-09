@@ -1,6 +1,6 @@
 'use client'
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 /**
  * Root page — redirects to /dashboard.
@@ -9,21 +9,29 @@ import { useRouter } from 'next/navigation'
  *   - Authenticated   → AppShell renders children → dashboard loads
  *   - Unauthenticated → AppShell redirects to /login
  *
- * This page does NOT call useAuth() — that would create a second
- * independent auth check on top of AppShell's, causing a double-loading
- * state that hangs after OAuth signInWithRedirect.
+ * IMPORTANT — CloudFront fallback safety:
+ *   On CloudFront (before the URI rewrite function is deployed),
+ *   S3 returns 403 for routes like /login, /auth/callback, etc.
+ *   CloudFront's error page serves /index.html (THIS component).
+ *   If we blindly do router.replace('/dashboard'), we'd clobber
+ *   the /auth/callback URL and lose the OAuth authorization code.
  *
- * Why not `export { default } from './dashboard/page'`?
- *   On CloudFront, S3 403s get rewritten to /index.html. Directly
- *   rendering the dashboard here would show it on any 403 route
- *   (including /login). A client-side redirect is safer.
+ *   Fix: only redirect when pathname is actually '/'.
+ *   For any other URL, return null and let Next.js client-side
+ *   router load the correct page component.
  */
 export default function RootPage() {
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
-    router.replace('/dashboard')
-  }, [router])
+    // Only redirect if we're actually on the root path.
+    // If CloudFront served index.html as fallback for another route,
+    // pathname will be that route (e.g. /auth/callback) — don't redirect.
+    if (pathname === '/') {
+      router.replace('/dashboard')
+    }
+  }, [router, pathname])
 
   return null
 }
