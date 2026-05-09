@@ -23,12 +23,12 @@ export default function AuthCallbackPage() {
     handled.current = true;
 
     const run = async () => {
-      try {
-        await signInWithRedirect();
-      } catch {
-        // Expected — Amplify throws when it detects we're already in a callback
-        // The token exchange still completes and Hub fires signedIn
-      }
+      // Trigger the OAuth code exchange. We do NOT await this because
+      // in some hosted environments it can hang indefinitely, blocking
+      // the callback logic. The Hub listener and polling will detect success.
+      signInWithRedirect().catch(() => {
+        // Expected — Amplify throws if already in callback
+      });
 
       let pollHandle: ReturnType<typeof setInterval>;
       let attempts = 0;
