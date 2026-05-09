@@ -128,6 +128,50 @@ export class FlowmintEdgeStack extends Stack {
     //     CloudFront intercepts and serves index.html instead
     //     Next.js router then handles the /dashboard route client-side
     // =========================================================
+    // CloudFront Function — URI rewriting for static export
+    //
+    // Next.js `output: 'export'` generates files like:
+    //   login/index.html, dashboard/index.html, etc.
+    //
+    // When a user requests /login, S3 looks for key "login" which
+    // doesn't exist — S3 returns 403 (private bucket) and CloudFront
+    // falls back to /index.html (the root page).
+    //
+    // This function rewrites /login → /login/index.html BEFORE
+    // the request reaches S3, so S3 finds the correct file.
+    //
+    // Rules:
+    //   /              → /index.html  (handled by defaultRootObject)
+    //   /login         → /login/index.html
+    //   /dashboard     → /dashboard/index.html
+    //   /foo.js        → /foo.js  (unchanged — has extension)
+    //   /login/        → /login/index.html
+    // =========================================================
+    const uriRewriteFunction = new cloudfront.Function(this, 'UriRewriteFunction', {
+      functionName: `${appName}-${envName}-uri-rewrite`,
+      code: cloudfront.FunctionCode.fromInline(`
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+
+          // If URI has a file extension, serve as-is (JS, CSS, images, etc.)
+          if (uri.includes('.')) {
+            return request;
+          }
+
+          // If URI ends with /, append index.html
+          if (uri.endsWith('/')) {
+            request.uri = uri + 'index.html';
+          } else {
+            // Append /index.html for clean URLs like /login, /dashboard
+            request.uri = uri + '/index.html';
+          }
+
+          return request;
+        }
+      `),
+    });
+
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: `${appName}-${envName} frontend`,
 
@@ -149,7 +193,14 @@ export class FlowmintEdgeStack extends Stack {
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
 
         // Compress responses automatically — gzip/brotli
-        compress: true
+        compress: true,
+
+        // Attach URI rewrite function — runs on every viewer request
+        // Rewrites /login → /login/index.html so S3 finds the file
+        functionAssociations: [{
+          function: uriRewriteFunction,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        }],
       },
 
       // ─────────────────────────────────────────────────────
