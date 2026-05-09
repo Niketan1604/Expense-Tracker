@@ -8,11 +8,6 @@ import { useRouter } from "next/navigation";
 
 type AuthResult = "success" | "failure";
 
-let resolveAuth: (result: AuthResult) => void;
-const authComplete = new Promise<AuthResult>((resolve) => {
-  resolveAuth = resolve;
-});
-
 export default function AuthCallbackPage() {
   const router = useRouter();
   const handled = useRef(false);
@@ -23,6 +18,11 @@ export default function AuthCallbackPage() {
     handled.current = true;
 
     const run = async () => {
+      let resolveAuth: (result: AuthResult) => void;
+      const authComplete = new Promise<AuthResult>((resolve) => {
+        resolveAuth = resolve;
+      });
+
       // Trigger the OAuth code exchange. We do NOT await this because
       // in some hosted environments it can hang indefinitely, blocking
       // the callback logic. The Hub listener and polling will detect success.
@@ -51,8 +51,14 @@ export default function AuthCallbackPage() {
         }, 500);
       });
 
+      const unsubscribe = Hub.listen("auth", ({ payload }) => {
+        if (payload.event === "signedIn") resolveAuth("success");
+        if (payload.event === "signInWithRedirect_failure") resolveAuth("failure");
+      });
+
       const result = await Promise.race([authComplete, pollPromise]);
       clearInterval(pollHandle!);
+      unsubscribe();
 
       if (result === "success") {
         await bootstrapProfile();
@@ -65,13 +71,7 @@ export default function AuthCallbackPage() {
       }
     };
 
-    const unsubscribe = Hub.listen("auth", ({ payload }) => {
-        if (payload.event === "signedIn") resolveAuth("success");
-        if (payload.event === "signInWithRedirect_failure")
-          resolveAuth("failure");
-      });
-
-    run().finally(() => unsubscribe());
+    run();
   }, []);
 
   return (

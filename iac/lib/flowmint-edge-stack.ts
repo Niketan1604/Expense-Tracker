@@ -163,8 +163,8 @@ export class FlowmintEdgeStack extends Stack {
           if (uri.endsWith('/')) {
             request.uri = uri + 'index.html';
           } else {
-            // Append /index.html for clean URLs like /login, /dashboard
-            request.uri = uri + '/index.html';
+            // Append .html for clean URLs like /login, /dashboard
+            request.uri = uri + '.html';
           }
 
           return request;
