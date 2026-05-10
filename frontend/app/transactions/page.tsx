@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTransactions, useCategories } from '@/hooks/useApi'
 import { transactionsApi } from '@/lib/api'
@@ -113,11 +113,32 @@ export default function TransactionsPage() {
   const [editTxn, setEditTxn]       = useState<Transaction | undefined>()
   const [deleting, setDeleting]     = useState<string | null>(null)
 
-  const { data: txns, loading, refetch } = useTransactions({
+  const [allTxns, setAllTxns]     = useState<Transaction[]>([])
+  const [cursor, setCursor]       = useState<string | undefined>()
+
+  const { data: res, loading, refetch: baseRefetch } = useTransactions({
     month,
     type: typeFilter || undefined,
     categoryId: catFilter || undefined,
+    cursor,
+    limit: 15
   })
+
+  // Reset list when filters change
+  useEffect(() => {
+    setAllTxns([])
+    setCursor(undefined)
+  }, [month, typeFilter, catFilter])
+
+  // Append new data as it arrives
+  useEffect(() => {
+    if (res?.items) {
+      setAllTxns(prev => (cursor ? [...prev, ...res.items] : res.items))
+    }
+  }, [res, cursor])
+
+  const loadMore = () => { if (res?.nextCursor) setCursor(res.nextCursor) }
+  const refetch  = () => { setCursor(undefined); baseRefetch() }
   const { data: categories } = useCategories()
   const catMap = Object.fromEntries((categories ?? []).map(c => [c.categoryId, c.name]))
 
@@ -137,7 +158,7 @@ export default function TransactionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="page-title">Transactions</h1>
-          <p className="page-subtitle">{txns?.length ?? 0} records this period</p>
+          <p className="page-subtitle">{allTxns.length} records shown</p>
         </div>
         <button onClick={openNew} className="btn btn-primary rounded-xl self-start sm:self-auto">
           <Plus className="w-4 h-4" /> New Transaction
@@ -171,9 +192,9 @@ export default function TransactionsPage() {
 
       {/* Table */}
       <div className="card overflow-hidden">
-        {loading ? (
+        {loading && !allTxns.length ? (
           <div>{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-[68px] rounded-none border-b" style={{ borderColor: 'var(--border)' }} />)}</div>
-        ) : !txns?.length ? (
+        ) : !allTxns.length ? (
           <div className="empty-state">
             <p>No transactions found for this period.</p>
           </div>
@@ -190,7 +211,7 @@ export default function TransactionsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {txns.map(txn => (
+                  {allTxns.map(txn => (
                     <tr key={txn.transactionId} className="group transition-colors"
                       style={{ borderBottom: '1px solid var(--border)' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
@@ -238,7 +259,7 @@ export default function TransactionsPage() {
 
             {/* Mobile list */}
             <div className="md:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
-              {txns.map(txn => (
+              {allTxns.map(txn => (
                 <div key={txn.transactionId} className="p-4">
                   <div className="flex justify-between items-start mb-1">
                     <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{txn.description || '—'}</p>
@@ -260,6 +281,13 @@ export default function TransactionsPage() {
                 </div>
               ))}
             </div>
+            {res?.nextCursor && (
+              <div className="p-6 flex justify-center border-t" style={{ borderColor: 'var(--border)' }}>
+                <button onClick={loadMore} disabled={loading} className="btn btn-ghost text-sm py-2 px-6 rounded-xl border border-dashed border-gray-500/30">
+                  {loading ? 'Loading...' : 'Load More'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
