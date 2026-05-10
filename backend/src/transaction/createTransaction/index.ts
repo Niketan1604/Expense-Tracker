@@ -35,8 +35,11 @@ const logger = createLogger('createTransaction');
 // =========================================================
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+    let userId: string | undefined;
+    let reqTransactionId: string | undefined;
+
     try {
-        const userId = getUserId(event);
+        userId = getUserId(event);
         if (!userId) {
             return error(STATUS.UNAUTHORIZED, 'Unauthorized');
         }
@@ -44,9 +47,11 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const body = parseBody(event.body, createTransactionSchema);
         if ('statusCode' in body) return body;
 
+        reqTransactionId = body.transactionId;
+
         const now = new Date().toISOString();
         // UUID v7 — time-sortable, no dependency (Node.js 24.x crypto)
-        const transactionId = crypto.randomUUID();
+        const transactionId = body.transactionId || crypto.randomUUID();
 
         const { year, month } = getYearMonth(body.date);
 
@@ -163,7 +168,15 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
         return created(transaction);
 
-    } catch (err) {
+    } catch (err: unknown) {
+        if ((err as { name?: string }).name === 'TransactionCanceledException') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const cancellationReasons = (err as any).CancellationReasons || [];
+            if (cancellationReasons[0]?.Code === 'ConditionalCheckFailed') {
+                logger.info('Idempotent request: transaction already exists', { userId, transactionId: reqTransactionId });
+                return error(STATUS.CONFLICT, 'Transaction already exists');
+            }
+        }
         logger.error('Failed to create transaction', { error: err });
         return error(STATUS.INTERNAL_ERROR, 'Failed to create transaction');
     }

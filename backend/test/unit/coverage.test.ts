@@ -367,7 +367,7 @@ describe('getTransactions — branch: query path selection', () => {
         ddbMock.on(QueryCommand).resolves({ Items: undefined });
 
         const result = await handler(buildEvent({ queryStringParameters: { month: '2025-06' } })) as any;
-        expect(JSON.parse(result.body).data).toEqual([]);
+        expect(JSON.parse(result.body).data).toEqual({ items: [], nextCursor: null });
     });
 });
 

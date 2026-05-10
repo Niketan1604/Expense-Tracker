@@ -76,14 +76,14 @@ describe('getTransactions', () => {
             ddbMock.on(QueryCommand).resolves({ Items: [] });
             const result = await getTransactionsHandler(buildEvent()) as any;
             expect(result.statusCode).toBe(200);
-            expect(JSON.parse(result.body).data).toEqual([]);
+            expect(JSON.parse(result.body).data).toEqual({ items: [], nextCursor: null });
         });
 
         it('returns 200 with transactions — no filter queries main table', async () => {
             ddbMock.on(QueryCommand).resolves({ Items: [MOCK_TXN] });
             const result = await getTransactionsHandler(buildEvent()) as any;
             expect(result.statusCode).toBe(200);
-            expect(JSON.parse(result.body).data).toHaveLength(1);
+            expect(JSON.parse(result.body).data.items).toHaveLength(1);
         });
 
         it('queries GSI2 when type filter is provided', async () => {

@@ -67,6 +67,7 @@ export const getYearMonth = (date: string): { year: string; month: string } => {
 // ── Zod schemas ───────────────────────────────────────────
 
 export const createTransactionSchema = z.object({
+  transactionId: z.string().uuid().optional(),
   type: transactionTypeSchema,
   amount: amountSchema,
   categoryId: z.string().min(1, 'categoryId is required'),

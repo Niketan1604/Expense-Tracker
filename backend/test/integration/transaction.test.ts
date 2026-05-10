@@ -154,39 +154,39 @@ describe('GET /transactions — integration', () => {
     it('returns all 3 transactions without filter', async () => {
         const result = await getListHandler(buildEvent()) as any;
         expect(result.statusCode).toBe(200);
-        expect(JSON.parse(result.body).data).toHaveLength(3);
+        expect(JSON.parse(result.body).data.items).toHaveLength(3);
     });
 
     it('returns correct transactions for month filter', async () => {
         const result = await getListHandler(buildEvent({ queryStringParameters: { month: '2025-06' } })) as any;
         expect(result.statusCode).toBe(200);
-        expect(JSON.parse(result.body).data).toHaveLength(3);
+        expect(JSON.parse(result.body).data.items).toHaveLength(3);
     });
 
     it('returns empty array for month with no transactions', async () => {
         const result = await getListHandler(buildEvent({ queryStringParameters: { month: '2025-05' } })) as any;
         expect(result.statusCode).toBe(200);
-        expect(JSON.parse(result.body).data).toHaveLength(0);
+        expect(JSON.parse(result.body).data.items).toHaveLength(0);
     });
 
     it('returns only DEBIT transactions via GSI2', async () => {
         const result = await getListHandler(buildEvent({ queryStringParameters: { type: 'DEBIT' } })) as any;
         expect(result.statusCode).toBe(200);
-        const data = JSON.parse(result.body).data;
+        const data = JSON.parse(result.body).data.items;
         expect(data).toHaveLength(2);
         data.forEach((t: any) => expect(t.type).toBe('DEBIT'));
     });
 
     it('returns only CREDIT transactions via GSI2', async () => {
         const result = await getListHandler(buildEvent({ queryStringParameters: { type: 'CREDIT' } })) as any;
-        const data = JSON.parse(result.body).data;
+        const data = JSON.parse(result.body).data.items;
         expect(data).toHaveLength(1);
         expect(data[0].type).toBe('CREDIT');
     });
 
     it('returns only matching category via GSI1', async () => {
         const result = await getListHandler(buildEvent({ queryStringParameters: { categoryId: 'cat_food' } })) as any;
-        const data = JSON.parse(result.body).data;
+        const data = JSON.parse(result.body).data.items;
         expect(data).toHaveLength(1);
         expect(data[0].categoryId).toBe('cat_food');
     });

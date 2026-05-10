@@ -130,6 +130,9 @@ Resources:
     Properties:
       Name: !Sub "${AppName}-${EnvName}-api"
       StageName: !Ref EnvName
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 100
+        ThrottlingRateLimit: 50
 
       # JWT Authorizer — validates Cognito access tokens
       Auth:
