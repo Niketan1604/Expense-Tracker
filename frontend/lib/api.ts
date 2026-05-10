@@ -8,6 +8,7 @@ import type {
   SetBudgetBody, UpdateProfileBody,
   GetTransactionsParams, GetBudgetsParams,
   GetTopCategoriesParams, GetTrendParams, TransactionType,
+  PaginatedTransactions
 } from '@/types'
 
 const client = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_ENDPOINT })
@@ -49,7 +50,7 @@ export const userApi = {
 
 // ── Transactions ──────────────────────────────────────────────────────────────
 export const transactionsApi = {
-  list:   (p: GetTransactionsParams)              => client.get<Transaction[]>('/transactions', qp(p)).then(r => r.data),
+  list:   (p: GetTransactionsParams)              => client.get<PaginatedTransactions>('/transactions', qp(p)).then(r => r.data),
   get:    (id: string)                            => client.get<Transaction>(`/transactions/${id}`).then(r => r.data),
   create: (body: CreateTransactionBody)           => client.post<Transaction>('/transactions', body).then(r => r.data),
   update: (id: string, body: UpdateTransactionBody) => client.put<Transaction>(`/transactions/${id}`, body).then(r => r.data),

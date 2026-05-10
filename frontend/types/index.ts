@@ -14,6 +14,11 @@ export interface Transaction {
   updatedAt: string;
 }
 
+export interface PaginatedTransactions {
+  items: Transaction[];
+  nextCursor: string | null;
+}
+
 export interface Category {
   categoryId: string;   // cat_{uuid}
   userId: string;
@@ -76,6 +81,7 @@ export interface MonthlyTrendItem {
 // ── Request bodies ─────────────────────────────────────────────────────────────
 
 export interface CreateTransactionBody {
+  transactionId?: string;
   type: TransactionType;
   amount: number;       // paise
   categoryId: string;
@@ -120,6 +126,8 @@ export interface GetTransactionsParams {
   month: string;
   categoryId?: string;
   type?: TransactionType;
+  limit?: number;
+  cursor?: string;
 }
 
 export interface GetBudgetsParams {

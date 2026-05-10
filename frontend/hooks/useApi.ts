@@ -28,7 +28,7 @@ export const useMonthlyTotal     = (month = currentMonth()) => useFetch(() => su
 export const useTrend            = (months = 6)  => useFetch(async () => (await summaryApi.getTrend({ months })).trend, [months])
 
 export const useTransactions = (p: GetTransactionsParams) =>
-  useFetch(() => transactionsApi.list(p), [p.month, p.categoryId, p.type])
+  useFetch(async () => (await transactionsApi.list(p)).items, [p.month, p.categoryId, p.type, p.limit, p.cursor])
 
 export const useBreakdown = (month = currentMonth()) =>
   useFetch(async () => (await summaryApi.getBreakdown(month)).breakdown, [month])

@@ -34,6 +34,7 @@ function TxnModal({ txn, categories, onClose, onSave }: {
     e.preventDefault(); setLoading(true); setError('')
     try {
       const body: CreateTransactionBody = {
+        transactionId: txn ? undefined : crypto.randomUUID(),
         type, amount: decimalToPaise(parseFloat(amount)),
         categoryId, date,
         description: description || undefined,

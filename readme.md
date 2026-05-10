@@ -111,12 +111,13 @@ All endpoints (except `/health`) require an `Authorization` header containing a 
 
 ### Transactions
 - **`GET /transactions`**  
-  *Returns a list of transactions for the user.*
+  *Returns a paginated list of transactions. Supports `limit` and `cursor` query parameters. Response data format is `{ items: [...], nextCursor: "base64-string" }`.*
 - **`POST /transactions`**  
-  *Creates a new transaction (credit or debit).*
+  *Creates a new transaction. Idempotent.*
   - **Payload:** 
     ```json
     {
+      "transactionId": "UUID" (optional - send this to guarantee idempotency on retries),
       "type": "CREDIT" | "DEBIT",
       "amount": number (integer in paise/cents),
       "categoryId": "String",
