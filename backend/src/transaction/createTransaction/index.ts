@@ -1,6 +1,5 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
-import xss from 'xss';
 import { docClient, TABLE_NAME } from '../../shared/db';
 import { getUserId } from '../../shared/auth';
 import { created, error, STATUS } from '../../shared/constants';
@@ -42,10 +41,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             return error(STATUS.UNAUTHORIZED, 'Unauthorized');
         }
 
-        // Sanitize body before parsing — only sanitize body, not entire event
-        // (sanitizing entire event corrupts JWT claims in requestContext)
-        const sanitizedBody = event.body ? xss(event.body) : event.body;
-        const body = parseBody(sanitizedBody, createTransactionSchema);
+        const body = parseBody(event.body, createTransactionSchema);
         if ('statusCode' in body) return body;
 
         const now = new Date().toISOString();

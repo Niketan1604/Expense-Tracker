@@ -1,6 +1,5 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import xss from 'xss';
 import { docClient, TABLE_NAME } from '../../shared/db';
 import { getUserId } from '../../shared/auth';
 import { response, error, STATUS } from '../../shared/constants';
@@ -26,8 +25,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const categoryId = event.pathParameters?.categoryId;
         if (!categoryId) return error(STATUS.BAD_REQUEST, 'categoryId is required');
 
-        const sanitizedBody = event.body ? xss(event.body) : event.body;
-        const body = parseBody(sanitizedBody, updateCategorySchema);
+        const body = parseBody(event.body, updateCategorySchema);
         if ('statusCode' in body) return body;
 
         const now = new Date().toISOString();

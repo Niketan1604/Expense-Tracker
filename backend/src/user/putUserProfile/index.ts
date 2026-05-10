@@ -5,7 +5,6 @@ import { STATUS, response, error } from '../../shared/constants';
 import { getUserId, getUserEmail } from '../../shared/auth';
 import { createLogger } from '../../shared/logger';
 import { UserProfile, userProfileKey } from '../model';
-import xss from 'xss';
 
 const logger = createLogger('putUserProfile');
 
@@ -16,10 +15,6 @@ interface PutProfileBody {
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     try {
-        // Step 0 — sanitize only user-controlled input (body)
-        if (event.body) {
-            event = { ...event, body: xss(event.body) };
-        }
 
         // Step 1 — extract userId + email from JWT claims
         const userId = getUserId(event);

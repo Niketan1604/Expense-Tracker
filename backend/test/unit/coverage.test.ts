@@ -469,11 +469,11 @@ describe('summary/model — branch: key helper functions', () => {
 });
 
 // ============================================================
-// src/user/putUserProfile — L31-38: event.body null/undefined (XSS skip)
+// src/user/putUserProfile — L31-38: event.body null/undefined
 // + email nullish coalescing (?? '')
 // ============================================================
 describe('putUserProfile — branch: body null and email nullish', () => {
-    it('handles missing body gracefully (no XSS applied, empty JSON used)', async () => {
+    it('handles missing body gracefully', async () => {
         const { handler } = await import('../../src/user/putUserProfile/index');
         // No body set — falls through to JSON.parse('{}') → missing fields → 400
         const result = await handler(buildEvent()) as any;

@@ -1,6 +1,5 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
-import xss from 'xss';
 import { docClient, TABLE_NAME } from '../../shared/db';
 import { getUserId } from '../../shared/auth';
 import { created, error, STATUS } from '../../shared/constants';
@@ -28,8 +27,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const userId = getUserId(event);
         if (!userId) return error(STATUS.UNAUTHORIZED, 'Unauthorized');
 
-        const sanitizedBody = event.body ? xss(event.body) : event.body;
-        const body = parseBody(sanitizedBody, createCategorySchema);
+        const body = parseBody(event.body, createCategorySchema);
         if ('statusCode' in body) return body;
 
         const categoryId = generateCategoryId();

@@ -1,6 +1,5 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { QueryCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
-import xss from 'xss';
 import { docClient, TABLE_NAME } from '../../shared/db';
 import { getUserId } from '../../shared/auth';
 import { response, error, STATUS } from '../../shared/constants';
@@ -48,8 +47,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const txnId = event.pathParameters?.txnId;
         if (!txnId) return error(STATUS.BAD_REQUEST, 'txnId is required');
 
-        const sanitizedBody = event.body ? xss(event.body) : event.body;
-        const body = parseBody(sanitizedBody, updateTransactionSchema);
+        const body = parseBody(event.body, updateTransactionSchema);
         if ('statusCode' in body) return body;
 
         // Fetch existing transaction by scanning TXN# SK space
