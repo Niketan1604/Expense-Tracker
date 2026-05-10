@@ -361,13 +361,63 @@ describe('getTransactions — branch: query path selection', () => {
         expect(call.args[0].input.IndexName).toBeUndefined();
         expect(call.args[0].input.KeyConditionExpression).toContain('begins_with(SK');
     });
-
     it('Items nullish → returns empty array', async () => {
         const { handler } = await import('../../src/transaction/getTransactions/index');
         ddbMock.on(QueryCommand).resolves({ Items: undefined });
 
         const result = await handler(buildEvent({ queryStringParameters: { month: '2025-06' } })) as any;
         expect(JSON.parse(result.body).data).toEqual({ items: [], nextCursor: null });
+    });
+
+    it('returns 400 when cursor is invalid base64/JSON', async () => {
+        const { handler } = await import('../../src/transaction/getTransactions/index');
+        const result = await handler(buildEvent({
+            queryStringParameters: { month: '2025-06', cursor: 'not-base64-json' }
+        })) as any;
+        expect(result.statusCode).toBe(400);
+        expect(JSON.parse(result.body).message).toMatch(/invalid cursor/i);
+    });
+});
+
+// ============================================================
+// src/transaction/createTransaction — L174-177: Idempotency check
+// ============================================================
+describe('createTransaction — branch: Idempotency collision', () => {
+    it('returns 409 when transactionId already exists (ConditionalCheckFailed)', async () => {
+        const { handler } = await import('../../src/transaction/createTransaction/index');
+        const { TransactWriteCommand } = require('@aws-sdk/lib-dynamodb');
+
+        // Mock TransactWriteCommand to fail with ConditionalCheckFailed
+        const error = new Error('Transaction cancelled') as any;
+        error.name = 'TransactionCanceledException';
+        error.CancellationReasons = [{ Code: 'ConditionalCheckFailed' }];
+        ddbMock.on(TransactWriteCommand).rejects(error);
+
+        const result = await handler(buildEvent({
+            body: {
+                transactionId: '550e8400-e29b-41d4-a716-446655440000',
+                type: 'DEBIT',
+                amount: 100,
+                categoryId: 'cat_abc',
+                date: '2025-06-01'
+            }
+        })) as any;
+
+        expect(result.statusCode).toBe(409);
+        expect(JSON.parse(result.body).message).toMatch(/exists/i);
+    });
+
+    it('returns 500 when other transaction error occurs', async () => {
+        const { handler } = await import('../../src/transaction/createTransaction/index');
+        const { TransactWriteCommand } = require('@aws-sdk/lib-dynamodb');
+
+        ddbMock.on(TransactWriteCommand).rejects(new Error('Generic failure'));
+
+        const result = await handler(buildEvent({
+            body: { type: 'DEBIT', amount: 100, categoryId: 'cat_abc', date: '2025-06-01' }
+        })) as any;
+
+        expect(result.statusCode).toBe(500);
     });
 });
 
