@@ -188,6 +188,8 @@ export class FlowmintEdgeStack extends Stack {
         // Caches based on Accept-Encoding header, gzip/brotli support
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
 
+        responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+
         // Allowed methods — GET and HEAD only (static site, no POST)
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
