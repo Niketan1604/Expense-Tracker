@@ -132,10 +132,15 @@ export default function TransactionsPage() {
 
   // Append new data as it arrives
   useEffect(() => {
-    if (res?.items) {
-      setAllTxns(prev => (cursor ? [...prev, ...res.items] : res.items))
+    if (res?.items && !loading) {
+      setAllTxns(prev => {
+        if (!cursor) return res.items
+        const existingIds = new Set(prev.map(t => t.transactionId))
+        const uniqueNewItems = res.items.filter(t => !existingIds.has(t.transactionId))
+        return [...prev, ...uniqueNewItems]
+      })
     }
-  }, [res, cursor])
+  }, [res, loading, cursor])
 
   const loadMore = () => { if (res?.nextCursor) setCursor(res.nextCursor) }
   const refetch  = () => { setCursor(undefined); baseRefetch() }
