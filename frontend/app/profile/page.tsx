@@ -60,7 +60,7 @@ export default function ProfilePage() {
 
   const handleSignOut = async () => {
     await signOut();
-    // AppShell handles redirect for email/password users; Cognito handles OAuth
+    window.location.href = '/login';
   };
 
   if (loading) {

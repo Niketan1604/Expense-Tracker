@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, Wallet, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { signInWithRedirect } from 'aws-amplify/auth'
+import { userApi } from '@/lib/api'
 
 export default function LoginPage() {
   const { signIn } = useAuth()
@@ -21,6 +22,13 @@ export default function LoginPage() {
     setLoading(true); setError('')
     try {
       await signIn(email, password)
+      
+      try {
+        await userApi.getProfile()
+      } catch {
+        await userApi.updateProfile({ name: email.split('@')[0], currency: 'INR' })
+      }
+
       router.replace('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed')

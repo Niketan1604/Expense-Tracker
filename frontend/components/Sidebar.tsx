@@ -24,6 +24,7 @@ export function Sidebar() {
 
   const handleSignOut = async () => {
     await signOut()
+    window.location.href = '/login'
   }
 
   return (

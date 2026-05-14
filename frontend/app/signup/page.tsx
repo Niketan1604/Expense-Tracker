@@ -6,6 +6,8 @@ import { Mail, Lock, User, Eye, EyeOff, Wallet, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { signInWithRedirect } from 'aws-amplify/auth'
 
+import { userApi } from '@/lib/api'
+
 type Step = 'form' | 'confirm'
 
 export default function SignupPage() {
@@ -38,6 +40,13 @@ export default function SignupPage() {
     try {
       await confirmSignUp(email, code)
       await signIn(email, password)
+      
+      try {
+        await userApi.getProfile()
+      } catch {
+        await userApi.updateProfile({ name: name || email.split('@')[0], currency: 'INR' })
+      }
+
       router.replace('/dashboard')
     } catch (err) { setError(err instanceof Error ? err.message : 'Verification failed') }
     finally { setLoading(false) }
