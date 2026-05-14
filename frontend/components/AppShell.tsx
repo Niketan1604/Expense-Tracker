@@ -22,7 +22,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Never block public routes (login, signup, auth/callback) with a loading screen.
   // /auth/callback in particular needs to mount immediately so its Hub listener
   // can catch the OAuth signedIn event before it fires.
-  if (isPublic) return <>{children}</>
+  if (isPublic) {
+    if (user && pathname !== '/auth/callback') {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-bg">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 rounded-full border-2 border-border border-t-mint-500 animate-spin" />
+            <p className="text-sm text-muted font-medium">Loading…</p>
+          </div>
+        </div>
+      )
+    }
+    return <>{children}</>
+  }
 
   if (loading) {
     return (
