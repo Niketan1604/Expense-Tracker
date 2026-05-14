@@ -29,16 +29,19 @@ export const handler = async (event: any) => {
     if (nativeUser && nativeUser.Username) {
         const [providerName, ...providerUserIdParts] = event.userName.split('_');
         const providerUserId = providerUserIdParts.join('_');
+        
+        // Cognito requires the ProviderName to match exactly (e.g. "Google" instead of "google")
+        const formattedProviderName = providerName.charAt(0).toUpperCase() + providerName.slice(1);
 
         const linkCommand = new AdminLinkProviderForUserCommand({
             UserPoolId: userPoolId,
             DestinationUser: {
                 ProviderName: 'Cognito',
-                ProviderAttributeName: 'cognito:username',
+                // ProviderAttributeName is not needed for the Cognito destination user
                 ProviderAttributeValue: nativeUser.Username,
             },
             SourceUser: {
-                ProviderName: providerName,
+                ProviderName: formattedProviderName,
                 ProviderAttributeName: 'Cognito_Subject',
                 ProviderAttributeValue: providerUserId,
             },
