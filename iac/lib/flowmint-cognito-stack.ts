@@ -3,7 +3,10 @@ import { Construct } from 'constructs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as cdk from 'aws-cdk-lib';
-
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as path from 'path';
 interface CognitoStackProps extends StackProps {
     appName: string;
     envName: string;
@@ -25,8 +28,17 @@ export class FlowmintCognitoStack extends Stack {
             });
         };
 
+        const preSignUpTrigger = new lambdaNodejs.NodejsFunction(this, 'PreSignUpTrigger', {
+            entry: path.join(__dirname, 'preSignUp.ts'),
+            handler: 'handler',
+            runtime: lambda.Runtime.NODEJS_22_X,
+        });
+
         const userPool = new cognito.UserPool(this, 'UserPool', {
             userPoolName: `${appName}-${envName}-user-pool`,
+            lambdaTriggers: {
+                preSignUp: preSignUpTrigger,
+            },
 
             signInCaseSensitive: false, // Usernames should not be case sensitive (eg - username can be email id, and email ids are not case sensitive).
             selfSignUpEnabled: true, // Allow users to sign up themselves
@@ -74,6 +86,14 @@ export class FlowmintCognitoStack extends Stack {
             deletionProtection: envName === 'prod', // Enable deletion protection to prevent accidental deletion of the user pool in prod env only
 
         });
+
+        preSignUpTrigger.addToRolePolicy(new iam.PolicyStatement({
+            actions: [
+                'cognito-idp:ListUsers',
+                'cognito-idp:AdminLinkProviderForUser'
+            ],
+            resources: [userPool.userPoolArn]
+        }));
 
         const userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
             userPool,
