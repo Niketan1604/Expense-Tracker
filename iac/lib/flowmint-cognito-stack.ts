@@ -92,7 +92,7 @@ export class FlowmintCognitoStack extends Stack {
                 'cognito-idp:ListUsers',
                 'cognito-idp:AdminLinkProviderForUser'
             ],
-            resources: [userPool.userPoolArn]
+            resources: ['*']
         }));
 
         const userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
