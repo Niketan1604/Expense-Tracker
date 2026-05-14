@@ -103,8 +103,9 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="page animate-fadeUp">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+    <>
+      <div className="page animate-fadeUp">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
           <h1 className="page-title">Categories</h1>
           <p className="page-subtitle">Organise your transactions into groups</p>
@@ -174,8 +175,9 @@ export default function CategoriesPage() {
           </button>
         </div>
       )}
+      </div>
 
       {modalOpen && <CatModal category={editCat} onClose={() => setModalOpen(false)} onSave={refetch} />}
-    </div>
+    </>
   )
 }

@@ -99,8 +99,9 @@ export default function BudgetsPage() {
   }
 
   return (
-    <div className="page animate-fadeUp">
-      {/* Header */}
+    <>
+      <div className="page animate-fadeUp">
+        {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="page-title">Budgets</h1>
@@ -241,11 +242,12 @@ export default function BudgetsPage() {
           )}
         </div>
       </div>
+      </div>
 
       {modalOpen && (
         <BudgetModal month={month} categories={categories ?? []} existing={budgets ?? []}
           onClose={() => setModalOpen(false)} onSave={refetch} />
       )}
-    </div>
+    </>
   )
 }

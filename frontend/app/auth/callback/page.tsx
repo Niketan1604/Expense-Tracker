@@ -137,6 +137,7 @@ async function bootstrapProfile() {
       // Profile exists — user has logged in before, leave their data untouched
     } catch {
       // 404 or any error → profile doesn't exist yet, create it
+      // Default categories are seeded server-side by the PUT /user/profile Lambda
       await userApi.updateProfile({ name, currency });
     }
   } catch {
