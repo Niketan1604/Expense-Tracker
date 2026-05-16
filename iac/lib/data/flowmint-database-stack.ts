@@ -1,7 +1,7 @@
 import { Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import { exportParam } from '../utils/parameter-utils';
 
 interface DatabaseStackProps extends StackProps {
   appName: string;
@@ -15,14 +15,7 @@ export class FlowmintDatabaseStack extends Stack {
     super(scope, id, props);
 
     const { appName, envName } = props;
-
-    const exportParam = (name: string, value: string) => {
-      new ssm.StringParameter(this, `SSMParam-${name}`, {
-        parameterName: `/${appName}/${envName}/database/${name}`,
-        stringValue: value,
-        description: `${appName} ${envName} database — ${name}`
-      });
-    };
+    const domainName = 'database';
 
     // =========================================================
     // DynamoDB Single Table
@@ -148,10 +141,10 @@ export class FlowmintDatabaseStack extends Stack {
     //
     // Convention: /{appName}/{envName}/database/{key}
     // =========================================================
-    exportParam('table-name', this.table.tableName);
-    exportParam('table-arn', this.table.tableArn);
-    exportParam('gsi1-arn', `${this.table.tableArn}/index/GSI1`);
-    exportParam('gsi2-arn', `${this.table.tableArn}/index/GSI2`);
-    exportParam('stream-arn', this.table.tableStreamArn ?? 'stream-not-enabled');
+    exportParam(this, appName, envName, domainName, 'table-name', this.table.tableName);
+    exportParam(this, appName, envName, domainName, 'table-arn', this.table.tableArn);
+    exportParam(this, appName, envName, domainName, 'gsi1-arn', `${this.table.tableArn}/index/GSI1`);
+    exportParam(this, appName, envName, domainName, 'gsi2-arn', `${this.table.tableArn}/index/GSI2`);
+    exportParam(this, appName, envName, domainName, 'stream-arn', this.table.tableStreamArn ?? 'stream-not-enabled');
   }
 }

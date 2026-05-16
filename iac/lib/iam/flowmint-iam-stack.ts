@@ -1,7 +1,7 @@
 import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import { exportParam } from '../utils/parameter-utils';
 
 interface IamStackProps extends StackProps {
   appName: string;
@@ -14,14 +14,7 @@ export class FlowmintIamStack extends Stack {
     super(scope, id, props);
 
     const { appName, envName } = props;
-
-    const exportParam = (name: string, value: string) => {
-      new ssm.StringParameter(this, `SSMParam-${name}`, {
-        parameterName: `/${appName}/${envName}/iam/${name}`,
-        stringValue: value,
-        description: `${appName} ${envName} iam — ${name}`
-      });
-    };
+    const domainName = 'iam';
 
     // =========================================================
     // Permission Boundary
@@ -193,9 +186,9 @@ export class FlowmintIamStack extends Stack {
       });
 
       jenkinsInstanceRoleArn = jenkinsInstanceRole.roleArn;
-      exportParam('jenkins-ec2-role-name', jenkinsInstanceRole.roleName);
-      exportParam('jenkins-ec2-role-arn', jenkinsInstanceRole.roleArn);
-      exportParam('jenkins-instance-profile-name', instanceProfile.instanceProfileName!);
+      exportParam(this, appName, envName, domainName, 'jenkins-ec2-role-name', jenkinsInstanceRole.roleName);
+      exportParam(this, appName, envName, domainName, 'jenkins-ec2-role-arn', jenkinsInstanceRole.roleArn);
+      exportParam(this, appName, envName, domainName, 'jenkins-instance-profile-name', instanceProfile.instanceProfileName!);
     }
 
     // =========================================================
@@ -599,8 +592,8 @@ export class FlowmintIamStack extends Stack {
       }
     }));
 
-    exportParam('cfn-execution-role-arn', cfnExecutionRole.roleArn);
-    exportParam('jenkins-deploy-role-arn', jenkinsDeployRole.roleArn);
-    exportParam('permission-boundary-policy-arn', permissionBoundary.managedPolicyArn);
+    exportParam(this, appName, envName, domainName, 'cfn-execution-role-arn', cfnExecutionRole.roleArn);
+    exportParam(this, appName, envName, domainName, 'jenkins-deploy-role-arn', jenkinsDeployRole.roleArn);
+    exportParam(this, appName, envName, domainName, 'permission-boundary-policy-arn', permissionBoundary.managedPolicyArn);
   }
 }

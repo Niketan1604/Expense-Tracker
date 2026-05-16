@@ -1,7 +1,7 @@
 import { Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import { exportParam } from '../utils/parameter-utils';
 
 interface FrontendStackProps extends StackProps {
   appName: string;
@@ -18,14 +18,7 @@ export class FlowmintFrontendStack extends Stack {
     super(scope, id, props);
 
     const { appName, envName } = props;
-
-    const exportParam = (name: string, value: string) => {
-      new ssm.StringParameter(this, `SSMParam-${name}`, {
-        parameterName: `/${appName}/${envName}/frontend/${name}`,
-        stringValue: value,
-        description: `${appName} ${envName} frontend — ${name}`
-      });
-    };
+    const domainName = 'frontend';
 
     // =========================================================
     // S3 Bucket — stores Next.js static export (out/ directory)
@@ -76,8 +69,8 @@ export class FlowmintFrontendStack extends Stack {
     // bucket-arn           → edge stack (OAC bucket policy)
     // bucket-regional-domain → edge stack (CloudFront origin)
     // =========================================================
-    exportParam('bucket-name', this.bucket.bucketName);
-    exportParam('bucket-arn', this.bucket.bucketArn);
-    exportParam('bucket-regional-domain', this.bucket.bucketRegionalDomainName);
+    exportParam(this, appName, envName, domainName, 'bucket-name', this.bucket.bucketName);
+    exportParam(this, appName, envName, domainName, 'bucket-arn', this.bucket.bucketArn);
+    exportParam(this, appName, envName, domainName, 'bucket-regional-domain', this.bucket.bucketRegionalDomainName);
   }
 }

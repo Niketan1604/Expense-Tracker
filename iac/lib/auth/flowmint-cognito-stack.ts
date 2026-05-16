@@ -1,12 +1,13 @@
 import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as path from 'path';
+import { exportParam } from '../utils/parameter-utils';
+
 interface CognitoStackProps extends StackProps {
     appName: string;
     envName: string;
@@ -19,14 +20,7 @@ export class FlowmintCognitoStack extends Stack {
     constructor(scope: Construct, id: string, props: CognitoStackProps) {
         super(scope, id, props);
         const { appName, envName, cloudfrontDomain, googleClientId, googleClientSecret } = props;
-
-        const exportParam = (name: string, value: string) => {
-            new ssm.StringParameter(this, `SSMParam-${name}`, {
-                parameterName: `/${appName}/${envName}/cognito/${name}`,
-                stringValue: value,
-                description: `${appName} ${envName} cognito — ${name}`
-            });
-        };
+        const domainName = 'cognito';
 
         const preSignUpTrigger = new lambdaNodejs.NodejsFunction(this, 'PreSignUpTrigger', {
             entry: path.join(__dirname, 'preSignUp.ts'),
@@ -154,9 +148,9 @@ export class FlowmintCognitoStack extends Stack {
         });
 
         userPoolClient.node.addDependency(googleProvider);
-        exportParam('user-pool-id', userPool.userPoolId);
-        exportParam('app-client-id', userPoolClient.userPoolClientId);
-        exportParam('issuer-url', userPool.userPoolProviderUrl);
-        exportParam('hosted-domain', userPoolDomain.baseUrl().replace('https://', ''));
+        exportParam(this, appName, envName, domainName, 'user-pool-id', userPool.userPoolId);
+        exportParam(this, appName, envName, domainName, 'app-client-id', userPoolClient.userPoolClientId);
+        exportParam(this, appName, envName, domainName, 'issuer-url', userPool.userPoolProviderUrl);
+        exportParam(this, appName, envName, domainName, 'hosted-domain', userPoolDomain.baseUrl().replace('https://', ''));
     }
 }

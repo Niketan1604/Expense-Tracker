@@ -7,6 +7,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cr from 'aws-cdk-lib/custom-resources';
 
+import { exportParam } from '../utils/parameter-utils';
+
 interface EdgeStackProps extends StackProps {
   appName: string;
   envName: string;
@@ -20,18 +22,15 @@ export class FlowmintEdgeStack extends Stack {
     super(scope, id, props);
 
     const { appName, envName, bucketName, bucketRegionalDomainName } = props;
+    const domainName = 'edge';
 
     // =========================================================
     // SSM — edge stack writes to us-east-1 (this stack's region).
     // Jenkinsfile reads these params with --region us-east-1.
     // =========================================================
-    const exportParam = (name: string, value: string) => {
+    const exportEdgeParam = (name: string, value: string) => {
       // Write to us-east-1 (stack's region) — for IAC pipeline context reads
-      new ssm.StringParameter(this, `SSMParam-${name}`, {
-        parameterName: `/${appName}/${envName}/edge/${name}`,
-        stringValue: value,
-        description: `${appName} ${envName} edge — ${name}`,
-      });
+      exportParam(this, appName, envName, domainName, name, value);
 
       // Also write to ap-south-1 — so backend + cognito stacks can resolve it
       new cr.AwsCustomResource(this, `SSMParam-${name}-ApSouth1`, {
@@ -366,8 +365,8 @@ export class FlowmintEdgeStack extends Stack {
     //                      → backend SAM (CORS allowed origin)
     // distribution-id      → frontend Jenkinsfile (cache invalidation)
     // =========================================================
-    exportParam('cloudfront-domain', distribution.distributionDomainName);
-    exportParam('distribution-id', distribution.distributionId);
+    exportEdgeParam('cloudfront-domain', distribution.distributionDomainName);
+    exportEdgeParam('distribution-id', distribution.distributionId);
 
     // CloudFormation output — visible in AWS console after deploy
     new CfnOutput(this, 'CloudFrontURL', {

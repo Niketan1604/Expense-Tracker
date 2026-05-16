@@ -1,10 +1,17 @@
 import { App } from 'aws-cdk-lib';
-import { execSync } from 'child_process';
-import { FlowmintIamStack } from '../lib/flowmint-iam-stack';
-import { FlowmintDatabaseStack } from '../lib/flowmint-database-stack';
-import { FlowmintCognitoStack } from '../lib/flowmint-cognito-stack';
-import { FlowmintEdgeStack } from '../lib/flowmint-edge-stack';
-import { FlowmintFrontendStack } from '../lib/flowmint-frontend-stack';
+import { FlowmintIamStack } from '../lib/iam/flowmint-iam-stack';
+import { FlowmintDatabaseStack } from '../lib/data/flowmint-database-stack';
+import { FlowmintCognitoStack } from '../lib/auth/flowmint-cognito-stack';
+import { FlowmintEdgeStack } from '../lib/edge/flowmint-edge-stack';
+import { FlowmintFrontendStack } from '../lib/edge/flowmint-frontend-stack';
+import { SplitwiseNetworkStack } from '../lib/network/splitwise-network-stack';
+import { SplitwiseAlbStack } from '../lib/network/splitwise-alb-stack';
+import { SplitwiseDataStack } from '../lib/data/splitwise-data-stack';
+import { SplitwiseEcrStack } from '../lib/compute/splitwise-ecr-stack';
+import { SplitwiseClusterStack } from '../lib/compute/splitwise-cluster-stack';
+import { SplitwiseTaskStack } from '../lib/compute/splitwise-task-stack';
+import { SplitwiseEcsRolesStack } from '../lib/iam/splitwise-ecs-roles-stack';
+import { getSecureParam } from '../lib/utils/parameter-utils';
 
 const app = new App();
 
@@ -18,13 +25,9 @@ if (!cloudfrontDomain) {
   );
 }
 
-const getSecureParam = (name: string): string => {
-  const result = execSync(
-    `aws ssm get-parameter --name ${name} --with-decryption --query Parameter.Value --output text --region ${process.env.CDK_DEFAULT_REGION ?? 'ap-south-1'}`,
-    { encoding: 'utf-8' }
-  ).trim();
-  if (!result) throw new Error(`SSM parameter ${name} not found or empty`);
-  return result;
+const envConfig = {
+  account: process.env.CDK_DEFAULT_ACCOUNT,
+  region: process.env.CDK_DEFAULT_REGION
 };
 
 const googleClientId = getSecureParam('/flowmint/cognito/google-client-id');
@@ -33,29 +36,20 @@ const googleClientSecret = getSecureParam('/flowmint/cognito/google-client-secre
 const iamStack = new FlowmintIamStack(app, `${appName}-${envName}-iam`, {
   appName,
   envName,
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION
-  }
+  env: envConfig
 });
 
 const databaseStack = new FlowmintDatabaseStack(app, `${appName}-${envName}-database`, {
   appName,
   envName,
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION
-  }
+  env: envConfig
 });
 databaseStack.addDependency(iamStack);
 
 const frontendStack = new FlowmintFrontendStack(app, `${appName}-${envName}-frontend`, {
   appName,
   envName,
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION
-  },
+  env: envConfig,
   crossRegionReferences: true
 });
 frontendStack.addDependency(iamStack);
@@ -79,12 +73,78 @@ const cognitoStack = new FlowmintCognitoStack(app, `${appName}-${envName}-cognit
   cloudfrontDomain,
   googleClientId,
   googleClientSecret,
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION
-  }
+  env: envConfig
 });
 cognitoStack.addDependency(iamStack);
 cognitoStack.addDependency(edgeStack);
+
+const splitwiseNetworkStack = new SplitwiseNetworkStack(app, `${appName}-${envName}-splitwise-network`, {
+  appName,
+  envName,
+  env: envConfig
+});
+
+const splitwiseAlbStack = new SplitwiseAlbStack(app, `${appName}-${envName}-splitwise-alb`, {
+  appName,
+  envName,
+  env: envConfig,
+  vpc: splitwiseNetworkStack.vpc,
+  albSecurityGroup: splitwiseNetworkStack.albSecurityGroup
+});
+splitwiseAlbStack.addDependency(splitwiseNetworkStack);
+
+const splitwiseDataStack = new SplitwiseDataStack(app, `${appName}-${envName}-splitwise-data`, {
+  appName,
+  envName,
+  env: envConfig,
+  vpc: splitwiseNetworkStack.vpc,
+  rdsSecurityGroup: splitwiseNetworkStack.rdsSecurityGroup
+});
+splitwiseDataStack.addDependency(splitwiseNetworkStack);
+
+const splitwiseEcrStack = new SplitwiseEcrStack(app, `${appName}-${envName}-splitwise-ecr`, {
+  appName,
+  envName,
+  env: envConfig
+});
+
+const splitwiseClusterStack = new SplitwiseClusterStack(app, `${appName}-${envName}-splitwise-cluster`, {
+  appName,
+  envName,
+  env: envConfig,
+  vpc: splitwiseNetworkStack.vpc
+});
+splitwiseClusterStack.addDependency(splitwiseNetworkStack);
+
+const splitwiseEcsRolesStack = new SplitwiseEcsRolesStack(app, `${appName}-${envName}-splitwise-ecs-roles`, {
+  appName,
+  envName,
+  env: envConfig,
+  repositoryArn: splitwiseEcrStack.repositoryArn,
+  dbSecretArn: splitwiseDataStack.dbSecret.secretArn
+});
+splitwiseEcsRolesStack.addDependency(splitwiseEcrStack);
+splitwiseEcsRolesStack.addDependency(splitwiseDataStack);
+
+const splitwiseTaskStack = new SplitwiseTaskStack(app, `${appName}-${envName}-splitwise-task`, {
+  appName,
+  envName,
+  env: envConfig,
+  ecsSecurityGroup: splitwiseNetworkStack.ecsSecurityGroup,
+  repositoryUri: splitwiseEcrStack.repositoryUri,
+  taskExecutionRole: splitwiseEcsRolesStack.taskExecutionRole,
+  taskRole: splitwiseEcsRolesStack.taskRole,
+  dbEndpoint: splitwiseDataStack.dbEndpoint,
+  dbSecretArn: splitwiseDataStack.dbSecret.secretArn,
+  cluster: splitwiseClusterStack.cluster,
+  logGroup: splitwiseClusterStack.logGroup,
+  targetGroup: splitwiseAlbStack.targetGroup
+});
+splitwiseTaskStack.addDependency(splitwiseNetworkStack);
+splitwiseTaskStack.addDependency(splitwiseAlbStack);
+splitwiseTaskStack.addDependency(splitwiseDataStack);
+splitwiseTaskStack.addDependency(splitwiseEcrStack);
+splitwiseTaskStack.addDependency(splitwiseClusterStack);
+splitwiseTaskStack.addDependency(splitwiseEcsRolesStack);
 
 app.synth();
