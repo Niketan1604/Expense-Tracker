@@ -98,7 +98,11 @@ export class SplitwiseTaskStack extends Stack {
       serviceName: `${appName}-${envName}-splitwise`,
       cluster,
       taskDefinition,
-      desiredCount: 1,
+      // desiredCount: 0 — no tasks run at infrastructure deploy time.
+      // The ECR repo is empty at this point (no image pushed yet).
+      // A separate build pipeline pushes the Spring Boot image and then
+      // updates the service to desiredCount: 1 via `aws ecs update-service`.
+      desiredCount: 0,
 
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       assignPublicIp: true,
@@ -108,8 +112,11 @@ export class SplitwiseTaskStack extends Stack {
         type: ecs.DeploymentControllerType.ECS
       },
 
+      // Circuit breaker disabled during initial infra deploy —
+      // with desiredCount: 0 it never fires, but keeping it off
+      // prevents accidental rollbacks on first image push too.
       circuitBreaker: {
-        rollback: true
+        rollback: false // TODO: set this to true once spring boot application is setup
       },
 
       minHealthyPercent: 0,
