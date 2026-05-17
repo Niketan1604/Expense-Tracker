@@ -23,6 +23,6 @@ export const exportParam = (scope: Construct, appName: string, envName: string, 
   new ssm.StringParameter(scope, `SSMParam-${name}`, {
     parameterName: `/${appName}/${envName}/${domain}/${name}`,
     stringValue: value,
-    description: `${appName} ${envName} ${domain} — ${name}`
+    description: `${appName} ${envName} ${domain} - ${name}`
   });
 };

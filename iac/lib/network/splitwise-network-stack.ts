@@ -44,7 +44,7 @@ export class SplitwiseNetworkStack extends Stack {
 
       ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/22'),
 
-      maxAzs: 1,
+      maxAzs: 2,        // RDS requires DB subnet group across >=2 AZs even for single-AZ instances
       natGateways: 0,
 
       subnetConfiguration: [
