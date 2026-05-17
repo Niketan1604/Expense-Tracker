@@ -37,10 +37,10 @@ export class SplitwiseEcrStack extends Stack {
     });
 
     repository.addLifecycleRule({
-      description: 'Delete untagged images after 1 hour',
+      description: 'Delete untagged images after 1 day',
       rulePriority: 2,
       tagStatus: ecr.TagStatus.UNTAGGED,
-      maxImageAge: Duration.hours(1)
+      maxImageAge: Duration.days(1)
     });
 
     this.repositoryUri = repository.repositoryUri;
