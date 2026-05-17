@@ -1,4 +1,4 @@
-import { Stack, StackProps, RemovalPolicy, Duration } from 'aws-cdk-lib';
+import { Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import { exportParam } from '../utils/parameter-utils';
@@ -27,20 +27,14 @@ export class SplitwiseEcrStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN
     });
 
-    // ECR Lifecycle Rules
+    // ECR Lifecycle Rule
+    // tagStatus ANY keeps the 2 most recently pushed images (tagged or untagged).
+    // This avoids ECR's restriction that tagPrefixList cannot contain empty strings.
     repository.addLifecycleRule({
-      description: 'Keep only the last 2 tagged images',
+      description: 'Keep only the last 2 images',
       rulePriority: 1,
-      tagStatus: ecr.TagStatus.TAGGED,
-      tagPrefixList: ['v', ''],   // matches any tag
+      tagStatus: ecr.TagStatus.ANY,
       maxImageCount: 2
-    });
-
-    repository.addLifecycleRule({
-      description: 'Delete untagged images after 1 day',
-      rulePriority: 2,
-      tagStatus: ecr.TagStatus.UNTAGGED,
-      maxImageAge: Duration.days(1)
     });
 
     this.repositoryUri = repository.repositoryUri;

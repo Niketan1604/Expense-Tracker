@@ -24,10 +24,10 @@ export class SplitwiseEcsRolesStack extends Stack {
     this.taskExecutionRole = new iam.Role(this, 'TaskExecutionRole', {
       roleName: `${appName}-${envName}-splitwise-ecs-execution-role`,
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-      description: 'ECS agent role — pulls ECR image, injects secrets, writes logs'
+      description: 'ECS agent role - pulls ECR image, injects secrets, writes logs'
     });
 
-    // ── ECR: pull the Spring Boot Docker image ────────────────
+    // ECR: pull the Spring Boot Docker image
     this.taskExecutionRole.addToPolicy(new iam.PolicyStatement({
       sid: 'EcrGetAuthToken',
       effect: iam.Effect.ALLOW,
@@ -64,8 +64,8 @@ export class SplitwiseEcsRolesStack extends Stack {
         'logs:PutLogEvents'
       ],
       resources: [
-        `arn:aws:logs:${this.region}:${this.account}:log-group:/ecs/${appName}-${envName}-splitwise`,
-        `arn:aws:logs:${this.region}:${this.account}:log-group:/ecs/${appName}-${envName}-splitwise:*`
+        `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/ecs/${appName}-${envName}-splitwise`,
+        `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/ecs/${appName}-${envName}-splitwise:*`
       ]
     }));
 
@@ -74,7 +74,7 @@ export class SplitwiseEcsRolesStack extends Stack {
     this.taskRole = new iam.Role(this, 'TaskRole', {
       roleName: `${appName}-${envName}-splitwise-ecs-task-role`,
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-      description: 'Application role — assumed by Spring Boot code inside the container'
+      description: 'Application role - assumed by Spring Boot code inside the container'
     });
 
     // SSM Exports
