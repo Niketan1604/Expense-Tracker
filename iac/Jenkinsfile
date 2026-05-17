@@ -275,7 +275,97 @@ pipeline {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 12 — Print CloudFront URL
+    // STAGE 12 — Deploy Splitwise Network Stack
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Splitwise Network') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-splitwise-network \
+              --app cdk.out \
+              --require-approval never
+          """
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 13 — Deploy Splitwise Data Stack
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Splitwise Data') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-splitwise-data \
+              --app cdk.out \
+              --require-approval never
+          """
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 14 — Deploy Splitwise ECR Stack
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Splitwise ECR') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-splitwise-ecr \
+              --app cdk.out \
+              --require-approval never
+          """
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 15 — Deploy Splitwise Cluster Stack
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Splitwise Cluster') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-splitwise-cluster \
+              --app cdk.out \
+              --require-approval never
+          """
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 16 — Deploy Splitwise ECS Roles Stack
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Splitwise ECS Roles') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-splitwise-ecs-roles \
+              --app cdk.out \
+              --require-approval never
+          """
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 17 — Deploy Splitwise Task Stack
+    // ─────────────────────────────────────────────────────────────
+    stage('Deploy: Splitwise Task') {
+      steps {
+        dir('iac') {
+          sh """
+            npx cdk deploy ${env.APP_NAME}-${env.ENV_NAME}-splitwise-task \
+              --app cdk.out \
+              --require-approval never
+          """
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // STAGE 18 — Print CloudFront URL
     // Reads the CloudFront domain from SSM (us-east-1) and prints
     // the live URL so you can open it directly from the console.
     // ─────────────────────────────────────────────────────────────

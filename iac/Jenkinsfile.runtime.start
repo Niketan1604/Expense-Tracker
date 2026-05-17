@@ -1,0 +1,158 @@
+pipeline {
+  agent any
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '5'))
+  }
+
+  environment {
+    APP_NAME       = 'flowmint'
+    AWS_REGION     = 'ap-south-1'
+    AWS_ACCOUNT_ID = credentials('aws-account-id')
+  }
+
+  stages {
+
+    stage('Setup Environment') {
+      steps {
+        script {
+          env.ENV_NAME = env.BRANCH_NAME == 'main' ? 'prod' : 'dev'
+          env.DEPLOY_ROLE_ARN = "arn:aws:iam::${env.AWS_ACCOUNT_ID}:role/${env.APP_NAME}-${env.ENV_NAME}-jenkins-deploy-role"
+          echo "Environment: ${env.ENV_NAME}"
+        }
+      }
+    }
+
+    stage('Assume Role') {
+      steps {
+        script {
+          def creds = sh(
+            script: """
+              aws sts assume-role \
+                --role-arn ${env.DEPLOY_ROLE_ARN} \
+                --role-session-name jenkins-runtime-start-\$(date +%s) \
+                --duration-seconds 3600 \
+                --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim().split('\\s+')
+
+          env.AWS_ACCESS_KEY_ID     = creds[0]
+          env.AWS_SECRET_ACCESS_KEY = creds[1]
+          env.AWS_SESSION_TOKEN     = creds[2]
+        }
+      }
+    }
+
+    stage('Get SSM Parameters') {
+      steps {
+        script {
+          // Get RDS Instance ID
+          env.DB_INSTANCE_ID = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/splitwise-data/db-instance-id \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+
+          // Get ECS Cluster Name
+          env.CLUSTER_NAME = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/splitwise-compute/cluster-name \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+
+          // Get ECS Service Name
+          env.SERVICE_NAME = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/splitwise-compute/service-name \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+        }
+      }
+    }
+
+    stage('Start RDS Instance') {
+      steps {
+        script {
+          echo "Starting RDS Instance: ${env.DB_INSTANCE_ID}"
+          // Attempt to start the DB instance. If it's already starting or available, ignore the error.
+          sh """
+            aws rds start-db-instance --db-instance-identifier ${env.DB_INSTANCE_ID} || true
+          """
+        }
+      }
+    }
+
+    stage('Wait for RDS to be Available') {
+      steps {
+        script {
+          echo "Waiting for RDS Instance to be available..."
+          sh """
+            aws rds wait db-instance-available --db-instance-identifier ${env.DB_INSTANCE_ID}
+          """
+        }
+      }
+    }
+
+    stage('Start ECS Service') {
+      steps {
+        script {
+          echo "Starting ECS Service: ${env.SERVICE_NAME} in Cluster: ${env.CLUSTER_NAME}"
+          // Scale ECS service to 1
+          sh """
+            aws ecs update-service \
+              --cluster ${env.CLUSTER_NAME} \
+              --service ${env.SERVICE_NAME} \
+              --desired-count 1 \
+              --output text > /dev/null
+          """
+        }
+      }
+    }
+
+    stage('Wait for ECS Service to be Stable') {
+      steps {
+        script {
+          echo "Waiting for ECS Service to become stable..."
+          sh """
+            aws ecs wait services-stable \
+              --cluster ${env.CLUSTER_NAME} \
+              --services ${env.SERVICE_NAME}
+          """
+        }
+      }
+    }
+
+  }
+
+  post {
+    always {
+      script {
+        env.AWS_ACCESS_KEY_ID     = ''
+        env.AWS_SECRET_ACCESS_KEY = ''
+        env.AWS_SESSION_TOKEN     = ''
+      }
+      cleanWs()
+    }
+    success {
+      echo "✓ Runtime environment started successfully for ${env.ENV_NAME}"
+    }
+    failure {
+      echo "✗ Failed to start runtime environment for ${env.ENV_NAME}"
+    }
+  }
+
+}

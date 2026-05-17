@@ -1,0 +1,134 @@
+pipeline {
+  agent any
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '5'))
+  }
+
+  environment {
+    APP_NAME       = 'flowmint'
+    AWS_REGION     = 'ap-south-1'
+    AWS_ACCOUNT_ID = credentials('aws-account-id')
+  }
+
+  stages {
+
+    stage('Setup Environment') {
+      steps {
+        script {
+          env.ENV_NAME = env.BRANCH_NAME == 'main' ? 'prod' : 'dev'
+          env.DEPLOY_ROLE_ARN = "arn:aws:iam::${env.AWS_ACCOUNT_ID}:role/${env.APP_NAME}-${env.ENV_NAME}-jenkins-deploy-role"
+          echo "Environment: ${env.ENV_NAME}"
+        }
+      }
+    }
+
+    stage('Assume Role') {
+      steps {
+        script {
+          def creds = sh(
+            script: """
+              aws sts assume-role \
+                --role-arn ${env.DEPLOY_ROLE_ARN} \
+                --role-session-name jenkins-runtime-stop-\$(date +%s) \
+                --duration-seconds 3600 \
+                --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim().split('\\s+')
+
+          env.AWS_ACCESS_KEY_ID     = creds[0]
+          env.AWS_SECRET_ACCESS_KEY = creds[1]
+          env.AWS_SESSION_TOKEN     = creds[2]
+        }
+      }
+    }
+
+    stage('Get SSM Parameters') {
+      steps {
+        script {
+          // Get RDS Instance ID
+          env.DB_INSTANCE_ID = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/splitwise-data/db-instance-id \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+
+          // Get ECS Cluster Name
+          env.CLUSTER_NAME = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/splitwise-compute/cluster-name \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+
+          // Get ECS Service Name
+          env.SERVICE_NAME = sh(
+            script: """
+              aws ssm get-parameter \
+                --name /${env.APP_NAME}/${env.ENV_NAME}/splitwise-compute/service-name \
+                --query 'Parameter.Value' \
+                --output text
+            """,
+            returnStdout: true
+          ).trim()
+        }
+      }
+    }
+
+    stage('Stop ECS Service') {
+      steps {
+        script {
+          echo "Stopping ECS Service: ${env.SERVICE_NAME} in Cluster: ${env.CLUSTER_NAME}"
+          // Scale ECS service to 0
+          sh """
+            aws ecs update-service \
+              --cluster ${env.CLUSTER_NAME} \
+              --service ${env.SERVICE_NAME} \
+              --desired-count 0 \
+              --output text > /dev/null
+          """
+        }
+      }
+    }
+
+    stage('Stop RDS Instance') {
+      steps {
+        script {
+          echo "Stopping RDS Instance: ${env.DB_INSTANCE_ID}"
+          // Attempt to stop the DB instance. Ignore error if already stopped.
+          sh """
+            aws rds stop-db-instance --db-instance-identifier ${env.DB_INSTANCE_ID} || true
+          """
+        }
+      }
+    }
+
+  }
+
+  post {
+    always {
+      script {
+        env.AWS_ACCESS_KEY_ID     = ''
+        env.AWS_SECRET_ACCESS_KEY = ''
+        env.AWS_SESSION_TOKEN     = ''
+      }
+      cleanWs()
+    }
+    success {
+      echo "✓ Runtime environment stopped successfully for ${env.ENV_NAME}"
+    }
+    failure {
+      echo "✗ Failed to stop runtime environment for ${env.ENV_NAME}"
+    }
+  }
+
+}
