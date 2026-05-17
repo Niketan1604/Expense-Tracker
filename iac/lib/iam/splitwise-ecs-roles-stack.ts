@@ -20,9 +20,7 @@ export class SplitwiseEcsRolesStack extends Stack {
     const { appName, envName, repositoryArn, dbSecretArn } = props;
     const domainName = 'splitwise-iam';
 
-    // ECS Task Execution Role - this will be assumed by ecs agent (fargate agent)
-    // and it is used to give permission to the ecs agent to pull image from ECR, 
-    // inject secrets and write logs to cloudwatch
+    // ECS Task Execution Role
     this.taskExecutionRole = new iam.Role(this, 'TaskExecutionRole', {
       roleName: `${appName}-${envName}-splitwise-ecs-execution-role`,
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
