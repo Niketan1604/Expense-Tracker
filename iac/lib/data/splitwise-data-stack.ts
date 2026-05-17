@@ -67,38 +67,27 @@ export class SplitwiseDataStack extends Stack {
       databaseName: 'splitwise',
 
       // ── Storage ──────────────────────────────────────────────
-      allocatedStorage: 20,                // GB — free tier maximum
+      allocatedStorage: 20,                // GB - free tier maximum
       storageType: rds.StorageType.GP2,
-      storageEncrypted: true,              // encrypt at rest, no extra cost
 
       // ── Availability ─────────────────────────────────────────
       multiAz: false,                      // single AZ, matches network stack
 
       // ── Backups ──────────────────────────────────────────────
-      backupRetention: Duration.days(7),
-      deleteAutomatedBackups: true,        // clean up backups if instance is deleted
+      // Free-tier accounts cap backup retention at 0 (no automated backups).
+      backupRetention: Duration.days(0),
+      deleteAutomatedBackups: true,
 
       // ── Maintenance ──────────────────────────────────────────
-      // 03:00–04:00 UTC on Sunday — low-traffic window.
-      // AWS applies minor version patches and maintenance here.
+      // 03:00-04:00 UTC on Sunday - low-traffic window.
       preferredMaintenanceWindow: 'Sun:03:00-Sun:04:00',
 
       // ── Lifecycle ────────────────────────────────────────────
       removalPolicy: RemovalPolicy.RETAIN, // CloudFormation will NOT delete this instance
-      // even on cdk destroy — manual deletion required
 
-      // ── Logging ──────────────────────────────────────────────
-      // Send PostgreSQL logs to CloudWatch so you can query slow
-      // queries and errors without SSHing anywhere.
-      // uncomment when needed
-      // cloudwatchLogsExports: ['postgresql'],  
-      // cloudwatchLogsRetention: logs.RetentionDays.ONE_WEEK,
-
-      // ── Performance Insights ─────────────────────────────────
-      // Free tier: 7-day retention. Useful for identifying slow
-      // queries during development without any extra cost.
-      enablePerformanceInsights: true,
-      performanceInsightRetention: rds.PerformanceInsightRetention.DEFAULT  // 7 days free
+      // ── Performance Insights ──────────────────────────────────
+      // Disabled: free-tier accounts cannot enable Performance Insights
+      enablePerformanceInsights: false
     });
 
     this.dbEndpoint = instance.instanceEndpoint.hostname;
