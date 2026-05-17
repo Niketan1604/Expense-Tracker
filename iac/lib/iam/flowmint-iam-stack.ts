@@ -155,6 +155,75 @@ export class FlowmintIamStack extends Stack {
             `arn:aws:iam::${this.account}:instance-profile/${appName}-*`,
             `arn:aws:iam::${this.account}:policy/${appName}-${envName}-*`
           ]
+        }),
+
+        // IAM — create service-linked roles (ECS, RDS, EC2 require these)
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['iam:CreateServiceLinkedRole'],
+          resources: [
+            `arn:aws:iam::${this.account}:role/aws-service-role/ecs.amazonaws.com/*`,
+            `arn:aws:iam::${this.account}:role/aws-service-role/rds.amazonaws.com/*`,
+            `arn:aws:iam::${this.account}:role/aws-service-role/elasticloadbalancing.amazonaws.com/*`
+          ]
+        }),
+
+        // EC2 / VPC — VPC, subnets, security groups, routing (Splitwise network)
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['ec2:*'],
+          resources: ['*']
+        }),
+
+        // RDS — PostgreSQL instance + subnet groups + parameter groups
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['rds:*'],
+          resources: [
+            `arn:aws:rds:${this.region}:${this.account}:db:${appName}-${envName}-*`,
+            `arn:aws:rds:${this.region}:${this.account}:subgrp:*`,
+            `arn:aws:rds:${this.region}:${this.account}:pg:*`,
+            `arn:aws:rds:${this.region}:${this.account}:secgrp:*`
+          ]
+        }),
+
+        // Secrets Manager — DB credentials secret
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['secretsmanager:*'],
+          resources: [
+            `arn:aws:secretsmanager:${this.region}:${this.account}:secret:/${appName}/${envName}/*`
+          ]
+        }),
+
+        // ECR — container image repository (Splitwise)
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['ecr:*'],
+          resources: [
+            `arn:aws:ecr:${this.region}:${this.account}:repository/${appName}-${envName}-*`
+          ]
+        }),
+
+        // ECR — auth token (must be * per AWS requirement)
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['ecr:GetAuthorizationToken'],
+          resources: ['*']
+        }),
+
+        // ECS — Fargate cluster, service, task definition (Splitwise)
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['ecs:*'],
+          resources: ['*']
+        }),
+
+        // Service Discovery (CloudMap) — private DNS namespace for ECS
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['servicediscovery:*', 'route53:*'],
+          resources: ['*']
         })
       ]
     });
@@ -295,10 +364,69 @@ export class FlowmintIamStack extends Stack {
     // CloudFront invalidation — Jenkins triggers after frontend S3 sync
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ['cloudfront:CreateInvalidation'],
+      actions: [
+        'cloudfront:CreateInvalidation',
+        'cloudfront:ListDistributions',
+        'cloudfront:GetDistribution'
+      ],
       resources: [
         `arn:aws:cloudfront::${this.account}:distribution/*`
       ]
+    }));
+
+    // ECR — Jenkins pushes Docker images before CDK deploys ECS task
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['ecr:GetAuthorizationToken'],
+      resources: ['*']
+    }));
+
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage',
+        'ecr:PutImage',
+        'ecr:InitiateLayerUpload',
+        'ecr:UploadLayerPart',
+        'ecr:CompleteLayerUpload',
+        'ecr:DescribeRepositories',
+        'ecr:DescribeImages',
+        'ecr:ListImages'
+      ],
+      resources: [
+        `arn:aws:ecr:${this.region}:${this.account}:repository/${appName}-${envName}-*`
+      ]
+    }));
+
+    // ECS — Jenkins may trigger forced deployments / describe services
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ecs:DescribeServices',
+        'ecs:DescribeClusters',
+        'ecs:DescribeTaskDefinition',
+        'ecs:ListServices',
+        'ecs:ListTaskDefinitions',
+        'ecs:UpdateService'
+      ],
+      resources: ['*']
+    }));
+
+    // EC2 — CDK needs describe calls during synth/diff for VPC context lookups
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ec2:DescribeAvailabilityZones',
+        'ec2:DescribeVpcs',
+        'ec2:DescribeSubnets',
+        'ec2:DescribeSecurityGroups',
+        'ec2:DescribeRouteTables',
+        'ec2:DescribeInternetGateways',
+        'ec2:DescribeVpcAttribute'
+      ],
+      resources: ['*']
     }));
 
     // CloudFormation — Jenkins creates/updates stacks and monitors progress
@@ -544,7 +672,7 @@ export class FlowmintIamStack extends Stack {
       ]
     }));
 
-    // IAM — create/manage app roles (LambdaExecutionRole etc.)
+    // IAM — create/manage app roles (LambdaExecutionRole, ECS task roles etc.)
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -575,7 +703,18 @@ export class FlowmintIamStack extends Stack {
       ]
     }));
 
-    // IAM PassRole — pass app roles to Lambda + API Gateway
+    // IAM — create service-linked roles required by ECS, RDS, ELB
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['iam:CreateServiceLinkedRole'],
+      resources: [
+        `arn:aws:iam::${this.account}:role/aws-service-role/ecs.amazonaws.com/*`,
+        `arn:aws:iam::${this.account}:role/aws-service-role/rds.amazonaws.com/*`,
+        `arn:aws:iam::${this.account}:role/aws-service-role/elasticloadbalancing.amazonaws.com/*`
+      ]
+    }));
+
+    // IAM PassRole — pass app roles to Lambda, API Gateway, and ECS
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['iam:PassRole'],
@@ -586,10 +725,160 @@ export class FlowmintIamStack extends Stack {
         StringEquals: {
           'iam:PassedToService': [
             'lambda.amazonaws.com',
-            'apigateway.amazonaws.com'
+            'apigateway.amazonaws.com',
+            'ecs-tasks.amazonaws.com'
           ]
         }
       }
+    }));
+
+    // EC2 / VPC — VPC, subnets, security groups, routing, internet gateway
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['ec2:*'],
+      resources: ['*']
+    }));
+
+    // RDS — PostgreSQL instance, subnet group, parameter group
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'rds:CreateDBInstance',
+        'rds:DeleteDBInstance',
+        'rds:ModifyDBInstance',
+        'rds:DescribeDBInstances',
+        'rds:CreateDBSubnetGroup',
+        'rds:DeleteDBSubnetGroup',
+        'rds:ModifyDBSubnetGroup',
+        'rds:DescribeDBSubnetGroups',
+        'rds:CreateDBParameterGroup',
+        'rds:DeleteDBParameterGroup',
+        'rds:ModifyDBParameterGroup',
+        'rds:DescribeDBParameterGroups',
+        'rds:DescribeDBParameters',
+        'rds:AddTagsToResource',
+        'rds:RemoveTagsFromResource',
+        'rds:ListTagsForResource',
+        'rds:DescribeDBEngineVersions',
+        'rds:DescribeOrderableDBInstanceOptions'
+      ],
+      resources: [
+        `arn:aws:rds:${this.region}:${this.account}:db:${appName}-${envName}-*`,
+        `arn:aws:rds:${this.region}:${this.account}:subgrp:*`,
+        `arn:aws:rds:${this.region}:${this.account}:pg:*`,
+        `arn:aws:rds:${this.region}:${this.account}:secgrp:*`,
+        `arn:aws:rds:${this.region}:${this.account}:*`
+      ]
+    }));
+
+    // Secrets Manager — DB credentials secret created by data stack
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'secretsmanager:CreateSecret',
+        'secretsmanager:DeleteSecret',
+        'secretsmanager:UpdateSecret',
+        'secretsmanager:DescribeSecret',
+        'secretsmanager:GetSecretValue',
+        'secretsmanager:PutSecretValue',
+        'secretsmanager:TagResource',
+        'secretsmanager:UntagResource',
+        'secretsmanager:ListSecretVersionIds',
+        'secretsmanager:RotateSecret',
+        'secretsmanager:CancelRotateSecret'
+      ],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:/${appName}/${envName}/*`
+      ]
+    }));
+
+    // ECR — container registry (create repo, lifecycle rules)
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ecr:CreateRepository',
+        'ecr:DeleteRepository',
+        'ecr:DescribeRepositories',
+        'ecr:PutLifecyclePolicy',
+        'ecr:DeleteLifecyclePolicy',
+        'ecr:GetLifecyclePolicy',
+        'ecr:PutImageScanningConfiguration',
+        'ecr:PutImageTagMutability',
+        'ecr:SetRepositoryPolicy',
+        'ecr:DeleteRepositoryPolicy',
+        'ecr:TagResource',
+        'ecr:UntagResource',
+        'ecr:ListTagsForResource'
+      ],
+      resources: [
+        `arn:aws:ecr:${this.region}:${this.account}:repository/${appName}-${envName}-*`
+      ]
+    }));
+
+    // ECR — auth token (must be * per AWS requirement)
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['ecr:GetAuthorizationToken'],
+      resources: ['*']
+    }));
+
+    // ECS — Fargate cluster, task definition, service, CloudMap integration
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ecs:CreateCluster',
+        'ecs:DeleteCluster',
+        'ecs:DescribeClusters',
+        'ecs:PutClusterCapacityProviders',
+        'ecs:RegisterTaskDefinition',
+        'ecs:DeregisterTaskDefinition',
+        'ecs:DescribeTaskDefinition',
+        'ecs:CreateService',
+        'ecs:DeleteService',
+        'ecs:UpdateService',
+        'ecs:DescribeServices',
+        'ecs:TagResource',
+        'ecs:UntagResource',
+        'ecs:ListTagsForResource'
+      ],
+      resources: ['*']
+    }));
+
+    // Service Discovery (CloudMap) — private DNS namespace for ECS
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'servicediscovery:CreatePrivateDnsNamespace',
+        'servicediscovery:DeleteNamespace',
+        'servicediscovery:GetNamespace',
+        'servicediscovery:ListNamespaces',
+        'servicediscovery:CreateService',
+        'servicediscovery:DeleteService',
+        'servicediscovery:GetService',
+        'servicediscovery:UpdateService',
+        'servicediscovery:ListServices',
+        'servicediscovery:TagResource',
+        'servicediscovery:UntagResource',
+        'servicediscovery:GetOperation',
+        'servicediscovery:ListOperations'
+      ],
+      resources: ['*']
+    }));
+
+    // Route 53 — CloudMap creates hosted zones for private DNS namespaces
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'route53:CreateHostedZone',
+        'route53:DeleteHostedZone',
+        'route53:GetHostedZone',
+        'route53:ListHostedZones',
+        'route53:ChangeResourceRecordSets',
+        'route53:GetChange',
+        'route53:AssociateVPCWithHostedZone',
+        'route53:DisassociateVPCFromHostedZone'
+      ],
+      resources: ['*']
     }));
 
     exportParam(this, appName, envName, domainName, 'cfn-execution-role-arn', cfnExecutionRole.roleArn);
