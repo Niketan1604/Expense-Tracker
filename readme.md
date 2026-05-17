@@ -204,10 +204,12 @@ npm run build
 The project utilizes **Jenkins** hosted on an AWS EC2 instance (`ap-south-1`) for continuous integration and continuous deployment (CI/CD). 
 
 ### Jenkins Pipelines
-There are three Multibranch Pipeline jobs mapped to the repository:
+There are five Multibranch Pipeline jobs mapped to the repository:
 1. `flowmint-iac` → `iac/Jenkinsfile`
 2. `flowmint-backend` → `backend/Jenkinsfile`
 3. `flowmint-frontend` → `frontend/Jenkinsfile`
+4. `flowmint-runtime-start` → `iac/Jenkinsfile.runtime.start`
+5. `flowmint-runtime-stop` → `iac/Jenkinsfile.runtime.stop`
 
 **Branch Strategy:**
 - `main` branch deploys to the **Production** environment.
