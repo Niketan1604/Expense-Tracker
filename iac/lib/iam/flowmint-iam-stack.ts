@@ -440,6 +440,7 @@ export class FlowmintIamStack extends Stack {
         'cloudformation:DescribeStackEvents',
         'cloudformation:DescribeStackResources',
         'cloudformation:DescribeStackResource',
+        'cloudformation:DescribeEvents',           // required by CDK for changeset failure details
         'cloudformation:GetTemplate',
         'cloudformation:GetTemplateSummary',
         'cloudformation:ListStacks',
