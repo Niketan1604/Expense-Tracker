@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cloudmap from 'aws-cdk-lib/aws-servicediscovery';
 import { exportParam } from '../utils/parameter-utils';
 
 interface SplitwiseClusterStackProps extends StackProps {
@@ -25,18 +26,21 @@ export class SplitwiseClusterStack extends Stack {
     // CloudWatch Log Group
     // =========================================================
     this.logGroup = new logs.LogGroup(this, 'LogGroup', {
-      logGroupName: `/ecs/${appName}-${envName}-splitwise`,
-      retention: logs.RetentionDays.TWO_WEEKS,
-      removalPolicy: RemovalPolicy.RETAIN
+      logGroupName: `/aws/ecs/${appName}-${envName}-splitwise`,
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY
     });
 
     // =========================================================
     // ECS Cluster
     // =========================================================
     this.cluster = new ecs.Cluster(this, 'Cluster', {
-      clusterName: `${appName}-${envName}-splitwise`,
+      clusterName: `${appName}-${envName}-splitwise-cluster`,
       vpc,
-      containerInsights: false
+      defaultCloudMapNamespace: {
+        name: 'splitwise.local',
+        type: cloudmap.NamespaceType.HTTP
+      }
     });
 
     exportParam(this, appName, envName, domainName, 'cluster-name', this.cluster.clusterName);

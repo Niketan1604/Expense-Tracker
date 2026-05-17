@@ -2,7 +2,6 @@ import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
@@ -19,7 +18,6 @@ interface SplitwiseTaskStackProps extends StackProps {
   dbSecretArn: string;
   cluster: ecs.Cluster;
   logGroup: logs.LogGroup;
-  targetGroup: elbv2.ApplicationTargetGroup;
 }
 
 export class SplitwiseTaskStack extends Stack {
@@ -32,7 +30,7 @@ export class SplitwiseTaskStack extends Stack {
       ecsSecurityGroup, repositoryUri,
       taskExecutionRole, taskRole,
       dbEndpoint, dbSecretArn,
-      cluster, logGroup, targetGroup
+      cluster, logGroup
     } = props;
 
     const domainName = 'splitwise-compute';
@@ -115,11 +113,16 @@ export class SplitwiseTaskStack extends Stack {
       },
 
       minHealthyPercent: 0,
-      maxHealthyPercent: 100
+      maxHealthyPercent: 100,
+
+      cloudMapOptions: {
+        name: 'backend'
+      }
     });
 
-    service.attachToApplicationTargetGroup(targetGroup);
-
     exportParam(this, appName, envName, domainName, 'service-name', service.serviceName);
+    if (service.cloudMapService) {
+      exportParam(this, appName, envName, domainName, 'cloudmap-service-arn', service.cloudMapService.serviceArn);
+    }
   }
 }

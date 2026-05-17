@@ -5,7 +5,6 @@ import { FlowmintCognitoStack } from '../lib/auth/flowmint-cognito-stack';
 import { FlowmintEdgeStack } from '../lib/edge/flowmint-edge-stack';
 import { FlowmintFrontendStack } from '../lib/edge/flowmint-frontend-stack';
 import { SplitwiseNetworkStack } from '../lib/network/splitwise-network-stack';
-import { SplitwiseAlbStack } from '../lib/network/splitwise-alb-stack';
 import { SplitwiseDataStack } from '../lib/data/splitwise-data-stack';
 import { SplitwiseEcrStack } from '../lib/compute/splitwise-ecr-stack';
 import { SplitwiseClusterStack } from '../lib/compute/splitwise-cluster-stack';
@@ -84,15 +83,6 @@ const splitwiseNetworkStack = new SplitwiseNetworkStack(app, `${appName}-${envNa
   env: envConfig
 });
 
-const splitwiseAlbStack = new SplitwiseAlbStack(app, `${appName}-${envName}-splitwise-alb`, {
-  appName,
-  envName,
-  env: envConfig,
-  vpc: splitwiseNetworkStack.vpc,
-  albSecurityGroup: splitwiseNetworkStack.albSecurityGroup
-});
-splitwiseAlbStack.addDependency(splitwiseNetworkStack);
-
 const splitwiseDataStack = new SplitwiseDataStack(app, `${appName}-${envName}-splitwise-data`, {
   appName,
   envName,
@@ -137,11 +127,9 @@ const splitwiseTaskStack = new SplitwiseTaskStack(app, `${appName}-${envName}-sp
   dbEndpoint: splitwiseDataStack.dbEndpoint,
   dbSecretArn: splitwiseDataStack.dbSecret.secretArn,
   cluster: splitwiseClusterStack.cluster,
-  logGroup: splitwiseClusterStack.logGroup,
-  targetGroup: splitwiseAlbStack.targetGroup
+  logGroup: splitwiseClusterStack.logGroup
 });
 splitwiseTaskStack.addDependency(splitwiseNetworkStack);
-splitwiseTaskStack.addDependency(splitwiseAlbStack);
 splitwiseTaskStack.addDependency(splitwiseDataStack);
 splitwiseTaskStack.addDependency(splitwiseEcrStack);
 splitwiseTaskStack.addDependency(splitwiseClusterStack);
