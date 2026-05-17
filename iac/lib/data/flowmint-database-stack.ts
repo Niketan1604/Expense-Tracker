@@ -1,6 +1,6 @@
 import { Stack, StackProps, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { exportParam } from '../utils/parameter-utils';
 
 interface DatabaseStackProps extends StackProps {

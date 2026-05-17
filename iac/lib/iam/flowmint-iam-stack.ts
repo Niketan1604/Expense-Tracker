@@ -1,6 +1,6 @@
 import { Stack, StackProps, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { exportParam } from '../utils/parameter-utils';
 
 interface IamStackProps extends StackProps {
