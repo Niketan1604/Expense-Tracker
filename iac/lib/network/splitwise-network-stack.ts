@@ -80,7 +80,7 @@ export class SplitwiseNetworkStack extends Stack {
     this.vpcLinkSecurityGroup = new ec2.SecurityGroup(this, 'VpcLinkSecurityGroup', {
       securityGroupName: `${appName}-${envName}-splitwise-vpclink-sg`,
       vpc: this.vpc,
-      description: 'Splitwise VPC Link — allows API Gateway to route to ECS',
+      description: 'Splitwise VPC Link - allows API Gateway to route to ECS',
       allowAllOutbound: true
     });
 
@@ -112,7 +112,7 @@ export class SplitwiseNetworkStack extends Stack {
     this.ecsSecurityGroup = new ec2.SecurityGroup(this, 'EcsSecurityGroup', {
       securityGroupName: `${appName}-${envName}-splitwise-ecs-sg`,
       vpc: this.vpc,
-      description: 'Splitwise ECS tasks — accepts traffic only from ALB on 8080',
+      description: 'Splitwise ECS tasks - accepts traffic only from VPC Link on 8080',
       allowAllOutbound: true
     });
 
@@ -130,7 +130,7 @@ export class SplitwiseNetworkStack extends Stack {
     this.rdsSecurityGroup = new ec2.SecurityGroup(this, 'RdsSecurityGroup', {
       securityGroupName: `${appName}-${envName}-splitwise-rds-sg`,
       vpc: this.vpc,
-      description: 'Splitwise RDS — accepts PostgreSQL only from ECS tasks',
+      description: 'Splitwise RDS - accepts PostgreSQL only from ECS tasks',
       allowAllOutbound: false
     });
 
