@@ -39,7 +39,8 @@ export class SplitwiseClusterStack extends Stack {
       vpc,
       defaultCloudMapNamespace: {
         name: 'splitwise.local',
-        type: cloudmap.NamespaceType.HTTP
+        type: cloudmap.NamespaceType.DNS_PRIVATE,
+        vpc
       }
     });
 
