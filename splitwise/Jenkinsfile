@@ -63,6 +63,7 @@ pipeline {
         stage('Test') {
             steps {
                 dir('splitwise') {
+                    sh 'chmod +x mvnw'
                     sh './mvnw test -Dspring.profiles.active=test'
                 }
             }
