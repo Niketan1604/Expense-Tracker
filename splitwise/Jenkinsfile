@@ -81,8 +81,12 @@ pipeline {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // STAGE 5 — Vulnerability And Security Scan
+        // STAGE 5 — Vulnerability And Security Scan (SKIPPED)
+        // Note: OWASP Dependency Check requires an NVD API Key to download
+        // the vulnerability database. Without it, the NVD API returns a 403 
+        // rate-limit error. 
         // ─────────────────────────────────────────────────────────────
+        /*
         stage('Vulnerability Scan') {
             steps {
                 dir('splitwise') {
@@ -90,6 +94,7 @@ pipeline {
                 }
             }
         }
+        */
 
         // ─────────────────────────────────────────────────────────────
         // STAGE 6 — Docker Build
