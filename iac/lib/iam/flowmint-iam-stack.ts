@@ -164,7 +164,9 @@ export class FlowmintIamStack extends Stack {
           resources: [
             `arn:aws:iam::${this.account}:role/aws-service-role/ecs.amazonaws.com/*`,
             `arn:aws:iam::${this.account}:role/aws-service-role/rds.amazonaws.com/*`,
-            `arn:aws:iam::${this.account}:role/aws-service-role/elasticloadbalancing.amazonaws.com/*`
+            `arn:aws:iam::${this.account}:role/aws-service-role/elasticloadbalancing.amazonaws.com/*`,
+            `arn:aws:iam::${this.account}:role/aws-service-role/apigateway.amazonaws.com/*`,
+            `arn:aws:iam::${this.account}:role/aws-service-role/ops.apigateway.amazonaws.com/*`
           ]
         }),
 
@@ -704,14 +706,16 @@ export class FlowmintIamStack extends Stack {
       ]
     }));
 
-    // IAM — create service-linked roles required by ECS, RDS, ELB
+    // IAM — create service-linked roles required by ECS, RDS, ELB, and API Gateway
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ['iam:CreateServiceLinkedRole'],
       resources: [
         `arn:aws:iam::${this.account}:role/aws-service-role/ecs.amazonaws.com/*`,
         `arn:aws:iam::${this.account}:role/aws-service-role/rds.amazonaws.com/*`,
-        `arn:aws:iam::${this.account}:role/aws-service-role/elasticloadbalancing.amazonaws.com/*`
+        `arn:aws:iam::${this.account}:role/aws-service-role/elasticloadbalancing.amazonaws.com/*`,
+        `arn:aws:iam::${this.account}:role/aws-service-role/apigateway.amazonaws.com/*`,
+        `arn:aws:iam::${this.account}:role/aws-service-role/ops.apigateway.amazonaws.com/*`
       ]
     }));
 
