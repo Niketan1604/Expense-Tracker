@@ -83,7 +83,7 @@ export class SplitwiseTaskStack extends Stack {
       }],
 
       healthCheck: {
-        command: ['CMD-SHELL', 'curl -f http://localhost:8080/health || exit 1'],
+        command: ['CMD-SHELL', 'curl -f http://localhost:8080/actuator/health || exit 1'],
         interval: Duration.seconds(30),
         timeout: Duration.seconds(30),
         retries: 3,
