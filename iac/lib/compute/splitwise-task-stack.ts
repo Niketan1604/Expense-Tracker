@@ -4,6 +4,7 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { exportParam } from '../utils/parameter-utils';
 
@@ -59,7 +60,11 @@ export class SplitwiseTaskStack extends Stack {
         DB_PORT: '5432',
         DB_NAME: 'splitwise',
         SPRING_DATASOURCE_URL: `jdbc:postgresql://${dbEndpoint}:5432/splitwise`,
-        SERVER_PORT: '8080'
+        SERVER_PORT: '8080',
+        COGNITO_ISSUER_URL: ssm.StringParameter.valueForStringParameter(
+          this,
+          `/${appName}/${envName}/cognito/issuer-url`
+        )
       },
 
       secrets: (() => {
