@@ -145,8 +145,15 @@ export class SplitwiseNetworkStack extends Stack {
     // Convention: /{appName}/{envName}/splitwise/network/{key}
     // =========================================================
     exportParam(this, appName, envName, domainName, 'vpc-id', this.vpc.vpcId);
-    exportParam(this, appName, envName, domainName, 'public-subnet-ids', this.vpc.publicSubnets.map(s => s.subnetId).join(','));
-    exportParam(this, appName, envName, domainName, 'private-subnet-ids', this.vpc.isolatedSubnets.map(s => s.subnetId).join(','));
+    
+    // Export subnets individually because CloudFormation !Split cannot process dynamic {{resolve:ssm}} references
+    this.vpc.publicSubnets.forEach((subnet, index) => {
+      exportParam(this, appName, envName, domainName, `public-subnet-${index + 1}-id`, subnet.subnetId);
+    });
+    
+    this.vpc.isolatedSubnets.forEach((subnet, index) => {
+      exportParam(this, appName, envName, domainName, `private-subnet-${index + 1}-id`, subnet.subnetId);
+    });
     exportParam(this, appName, envName, domainName, 'vpclink-sg-id', this.vpcLinkSecurityGroup.securityGroupId);
     exportParam(this, appName, envName, domainName, 'ecs-sg-id', this.ecsSecurityGroup.securityGroupId);
     exportParam(this, appName, envName, domainName, 'rds-sg-id', this.rdsSecurityGroup.securityGroupId);
