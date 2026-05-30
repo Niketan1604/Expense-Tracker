@@ -43,7 +43,7 @@ pipeline {
                                 --output text
                         """,
                         returnStdout: true
-                    ).trim().split('\s+')
+                    ).trim().split('\\s+')
 
                     env.AWS_ACCESS_KEY_ID     = creds[0]
                     env.AWS_SECRET_ACCESS_KEY = creds[1]
