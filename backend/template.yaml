@@ -742,9 +742,8 @@ Resources:
       Description: Private route to Splitwise Spring Boot ECS service via Cloud Map
       IntegrationType: HTTP_PROXY
       IntegrationMethod: ANY
-      ConnectionDetails:
-        ConnectionType: VPC_LINK
-        ConnectionId: !Ref SplitwiseVpcLink
+      ConnectionType: VPC_LINK
+      ConnectionId: !Ref SplitwiseVpcLink
       IntegrationUri: !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-compute/cloudmap-service-arn}}"
       PayloadFormatVersion: "1.0"
       RequestParameters:
