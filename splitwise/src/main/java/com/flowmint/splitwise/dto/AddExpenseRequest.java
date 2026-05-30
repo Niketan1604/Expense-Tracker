@@ -1,12 +1,12 @@
 package com.flowmint.splitwise.dto;
 
-import lombok.Data;
 import com.flowmint.splitwise.entity.SplitType;
-import jakarta.validation.constraints.*;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import lombok.Data;
 
 @Data
 public class AddExpenseRequest {
@@ -25,7 +25,7 @@ public class AddExpenseRequest {
     @NotNull(message = "Group ID is required")
     @NotNull(message = "Group ID is required")
     private UUID groupId;
-    
+
     @NotNull(message = "Paid By User ID is required")
     private UUID paidByUserId;
 
@@ -42,7 +42,7 @@ public class AddExpenseRequest {
     public static class UserSplit {
         @NotNull(message = "User ID is required")
         private UUID userId;
-        
+
         @Positive(message = "Split value must be greater than zero")
         private BigDecimal value;
     }

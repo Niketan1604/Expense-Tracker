@@ -1,10 +1,10 @@
 package com.flowmint.splitwise.entity;
 
-import lombok.Getter;
-import lombok.Setter;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.util.UUID;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "expense_shares")

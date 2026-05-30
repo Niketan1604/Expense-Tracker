@@ -5,11 +5,10 @@ import com.flowmint.splitwise.entity.Group;
 import com.flowmint.splitwise.entity.User;
 import com.flowmint.splitwise.repository.GroupRepository;
 import com.flowmint.splitwise.repository.UserRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class GroupService {
@@ -24,21 +23,20 @@ public class GroupService {
     }
 
     @Transactional
-    public Group createGroup(CreateGroupRequest request, String creatorCognitoId, String creatorName,
-            String creatorEmail) {
+    public Group createGroup(
+            CreateGroupRequest request, String creatorCognitoId, String creatorName, String creatorEmail) {
 
         // 1. Resolve the creator (find or auto-register)
-        User creator = userRepository.findByCognitoId(creatorCognitoId)
-                .orElseGet(() -> {
-                    if (creatorEmail == null || creatorEmail.trim().isEmpty()) {
-                        throw new IllegalArgumentException("Authenticated Flowmint users must have a valid email address.");
-                    }
-                    User newUser = new User();
-                    newUser.setCognitoId(creatorCognitoId);
-                    newUser.setName(creatorName != null ? creatorName : "Unknown User");
-                    newUser.setEmail(creatorEmail);
-                    return userRepository.save(newUser);
-                });
+        User creator = userRepository.findByCognitoId(creatorCognitoId).orElseGet(() -> {
+            if (creatorEmail == null || creatorEmail.trim().isEmpty()) {
+                throw new IllegalArgumentException("Authenticated Flowmint users must have a valid email address.");
+            }
+            User newUser = new User();
+            newUser.setCognitoId(creatorCognitoId);
+            newUser.setName(creatorName != null ? creatorName : "Unknown User");
+            newUser.setEmail(creatorEmail);
+            return userRepository.save(newUser);
+        });
 
         // 2. Check for duplicate group name for this user (case-insensitive)
         if (groupRepository.existsByNameAndMembers_Id(request.getName(), creator.getId())) {
@@ -83,16 +81,14 @@ public class GroupService {
         return groupRepository.save(group);
     }
 
-
     @Transactional
     public Group updateGroup(UUID groupId, com.flowmint.splitwise.dto.UpdateGroupRequest request) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
+        Group group = groupRepository.findById(groupId).orElseThrow(() -> new RuntimeException("Group not found"));
 
         if (request.getName() != null && !request.getName().trim().isEmpty()) {
             group.setName(request.getName());
         }
-        
+
         if (request.getDescription() != null) {
             group.setDescription(request.getDescription());
         }

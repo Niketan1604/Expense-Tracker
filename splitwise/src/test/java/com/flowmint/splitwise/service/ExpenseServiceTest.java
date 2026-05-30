@@ -1,10 +1,20 @@
 package com.flowmint.splitwise.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 import com.flowmint.splitwise.dto.AddExpenseRequest;
 import com.flowmint.splitwise.entity.*;
 import com.flowmint.splitwise.repository.ExpenseRepository;
 import com.flowmint.splitwise.repository.GroupRepository;
 import com.flowmint.splitwise.repository.UserRepository;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,24 +23,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
 @ExtendWith(MockitoExtension.class)
 class ExpenseServiceTest {
 
     @Mock
     private ExpenseRepository expenseRepository;
+
     @Mock
     private GroupRepository groupRepository;
+
     @Mock
     private UserRepository userRepository;
 
@@ -49,9 +50,12 @@ class ExpenseServiceTest {
         paidBy.setId(UUID.randomUUID());
         paidBy.setCognitoId("cognito-payer");
 
-        user1 = new User(); user1.setId(UUID.randomUUID());
-        user2 = new User(); user2.setId(UUID.randomUUID());
-        user3 = new User(); user3.setId(UUID.randomUUID());
+        user1 = new User();
+        user1.setId(UUID.randomUUID());
+        user2 = new User();
+        user2.setId(UUID.randomUUID());
+        user3 = new User();
+        user3.setId(UUID.randomUUID());
 
         group = new Group();
         group.setId(UUID.randomUUID());
@@ -67,9 +71,12 @@ class ExpenseServiceTest {
         request.setCurrency("USD");
         request.setSplitType(SplitType.EQUAL);
 
-        AddExpenseRequest.UserSplit s1 = new AddExpenseRequest.UserSplit(); s1.setUserId(user1.getId());
-        AddExpenseRequest.UserSplit s2 = new AddExpenseRequest.UserSplit(); s2.setUserId(user2.getId());
-        AddExpenseRequest.UserSplit s3 = new AddExpenseRequest.UserSplit(); s3.setUserId(user3.getId());
+        AddExpenseRequest.UserSplit s1 = new AddExpenseRequest.UserSplit();
+        s1.setUserId(user1.getId());
+        AddExpenseRequest.UserSplit s2 = new AddExpenseRequest.UserSplit();
+        s2.setUserId(user2.getId());
+        AddExpenseRequest.UserSplit s3 = new AddExpenseRequest.UserSplit();
+        s3.setUserId(user3.getId());
         request.setSplits(Arrays.asList(s1, s2, s3));
 
         // Mock database responses
@@ -78,7 +85,7 @@ class ExpenseServiceTest {
         when(userRepository.findById(user1.getId())).thenReturn(Optional.of(user1));
         when(userRepository.findById(user2.getId())).thenReturn(Optional.of(user2));
         when(userRepository.findById(user3.getId())).thenReturn(Optional.of(user3));
-        
+
         when(expenseRepository.save(any(Expense.class))).thenAnswer(i -> i.getArguments()[0]);
 
         // Act
@@ -91,11 +98,12 @@ class ExpenseServiceTest {
 
         List<ExpenseShare> shares = savedExpense.getShares();
         assertEquals(3, shares.size());
-        
+
         // Check penny rounding (100 / 3 = 33.33, 33.33, 33.34)
         assertEquals(new BigDecimal("33.33"), shares.get(0).getOwedAmount());
         assertEquals(new BigDecimal("33.33"), shares.get(1).getOwedAmount());
-        assertEquals(new BigDecimal("33.34"), shares.get(2).getOwedAmount()); // The last person gets the leftover penny!
+        assertEquals(
+                new BigDecimal("33.34"), shares.get(2).getOwedAmount()); // The last person gets the leftover penny!
     }
 
     @Test
@@ -108,12 +116,12 @@ class ExpenseServiceTest {
         request.setCurrency("USD");
         request.setSplitType(SplitType.EXACT);
 
-        AddExpenseRequest.UserSplit s1 = new AddExpenseRequest.UserSplit(); 
-        s1.setUserId(user1.getId()); 
+        AddExpenseRequest.UserSplit s1 = new AddExpenseRequest.UserSplit();
+        s1.setUserId(user1.getId());
         s1.setValue(new BigDecimal("40.00"));
 
-        AddExpenseRequest.UserSplit s2 = new AddExpenseRequest.UserSplit(); 
-        s2.setUserId(user2.getId()); 
+        AddExpenseRequest.UserSplit s2 = new AddExpenseRequest.UserSplit();
+        s2.setUserId(user2.getId());
         s2.setValue(new BigDecimal("40.00"));
 
         request.setSplits(Arrays.asList(s1, s2));
@@ -143,12 +151,12 @@ class ExpenseServiceTest {
         request.setCurrency("USD");
         request.setSplitType(SplitType.SHARES);
 
-        AddExpenseRequest.UserSplit s1 = new AddExpenseRequest.UserSplit(); 
-        s1.setUserId(user1.getId()); 
+        AddExpenseRequest.UserSplit s1 = new AddExpenseRequest.UserSplit();
+        s1.setUserId(user1.getId());
         s1.setValue(new BigDecimal("2")); // 2 shares
 
-        AddExpenseRequest.UserSplit s2 = new AddExpenseRequest.UserSplit(); 
-        s2.setUserId(user2.getId()); 
+        AddExpenseRequest.UserSplit s2 = new AddExpenseRequest.UserSplit();
+        s2.setUserId(user2.getId());
         s2.setValue(new BigDecimal("1")); // 1 share
 
         request.setSplits(Arrays.asList(s1, s2));
@@ -157,7 +165,7 @@ class ExpenseServiceTest {
         when(userRepository.findById(paidBy.getId())).thenReturn(Optional.of(paidBy));
         when(userRepository.findById(user1.getId())).thenReturn(Optional.of(user1));
         when(userRepository.findById(user2.getId())).thenReturn(Optional.of(user2));
-        
+
         when(expenseRepository.save(any(Expense.class))).thenAnswer(i -> i.getArguments()[0]);
 
         // Act

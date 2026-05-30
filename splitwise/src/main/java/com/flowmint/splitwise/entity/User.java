@@ -1,10 +1,10 @@
 package com.flowmint.splitwise.entity;
 
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
-import jakarta.persistence.*;
-import java.util.UUID;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users") // "user" is a reserved keyword in Postgres, so we use "users"

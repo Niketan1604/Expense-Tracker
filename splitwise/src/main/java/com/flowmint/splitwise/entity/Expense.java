@@ -1,13 +1,13 @@
 package com.flowmint.splitwise.entity;
 
-import lombok.Getter;
-import lombok.Setter;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "expenses")

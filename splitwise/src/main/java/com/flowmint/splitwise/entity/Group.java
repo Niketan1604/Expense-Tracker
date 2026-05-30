@@ -1,12 +1,12 @@
 package com.flowmint.splitwise.entity;
 
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
-import jakarta.persistence.*;
-import java.util.UUID;
-import java.time.LocalDateTime;
-import java.util.Set;
-import java.util.HashSet;
 
 @Entity
 @Table(name = "groups")
@@ -29,10 +29,9 @@ public class Group {
     // A Group can have many Users, and a User can be in many Groups (Many-to-Many)
     @ManyToMany
     @JoinTable(
-        name = "group_members", // This creates a junction table linking groups and users
-        joinColumns = @JoinColumn(name = "group_id"),
-        inverseJoinColumns = @JoinColumn(name = "user_id")
-    )
+            name = "group_members", // This creates a junction table linking groups and users
+            joinColumns = @JoinColumn(name = "group_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id"))
     private Set<User> members = new HashSet<>();
 
     @PrePersist

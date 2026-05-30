@@ -5,11 +5,10 @@ import com.flowmint.splitwise.entity.*;
 import com.flowmint.splitwise.repository.ExpenseRepository;
 import com.flowmint.splitwise.repository.GroupRepository;
 import com.flowmint.splitwise.repository.UserRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ExpenseService {
@@ -18,8 +17,8 @@ public class ExpenseService {
     private final GroupRepository groupRepository;
     private final UserRepository userRepository;
 
-    public ExpenseService(ExpenseRepository expenseRepository, GroupRepository groupRepository,
-            UserRepository userRepository) {
+    public ExpenseService(
+            ExpenseRepository expenseRepository, GroupRepository groupRepository, UserRepository userRepository) {
         this.expenseRepository = expenseRepository;
         this.groupRepository = groupRepository;
         this.userRepository = userRepository;
@@ -29,11 +28,13 @@ public class ExpenseService {
     public Expense addExpense(AddExpenseRequest request) {
 
         // 1. Validate the Group and the User who paid
-        Group group = groupRepository.findById(request.getGroupId())
+        Group group = groupRepository
+                .findById(request.getGroupId())
                 .orElseThrow(() -> new RuntimeException("Group not found"));
 
         // Fetch the user who ACTUALLY paid (e.g. Bob) using the ID from the request body
-        User paidBy = userRepository.findById(request.getPaidByUserId())
+        User paidBy = userRepository
+                .findById(request.getPaidByUserId())
                 .orElseThrow(() -> new RuntimeException("The specified payer user does not exist"));
 
         // 2. Create the base Expense
@@ -58,7 +59,8 @@ public class ExpenseService {
         for (int i = 0; i < request.getSplits().size(); i++) {
             AddExpenseRequest.UserSplit splitReq = request.getSplits().get(i);
 
-            User user = userRepository.findById(splitReq.getUserId())
+            User user = userRepository
+                    .findById(splitReq.getUserId())
                     .orElseThrow(() -> new RuntimeException("User in split not found: " + splitReq.getUserId()));
 
             BigDecimal owedAmount = BigDecimal.ZERO;
@@ -82,7 +84,8 @@ public class ExpenseService {
 
                 case PERCENTAGE:
                     // value is e.g. 25 for 25% -> (Total * 25) / 100
-                    owedAmount = totalAmount.multiply(splitReq.getValue())
+                    owedAmount = totalAmount
+                            .multiply(splitReq.getValue())
                             .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
                     // Again, handle penny leftovers for the last person
                     if (i == request.getSplits().size() - 1) {
@@ -97,8 +100,7 @@ public class ExpenseService {
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     // (Total * User's Shares) / Total Shares
-                    owedAmount = totalAmount.multiply(splitReq.getValue())
-                            .divide(totalShares, 2, RoundingMode.HALF_UP);
+                    owedAmount = totalAmount.multiply(splitReq.getValue()).divide(totalShares, 2, RoundingMode.HALF_UP);
 
                     if (i == request.getSplits().size() - 1) {
                         owedAmount = totalAmount.subtract(runningTotal);

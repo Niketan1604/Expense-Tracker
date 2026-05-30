@@ -12,16 +12,18 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable()) // Disable CSRF for stateless REST APIs
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health").permitAll() // Let AWS ECS check health without a token
-                .anyRequest().authenticated() // Require a valid Cognito JWT token for everything else
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> {}) // Enables JWT validation using the issuer-uri in application.properties
-            );
-            
+        http.csrf(csrf -> csrf.disable()) // Disable CSRF for stateless REST APIs
+                .authorizeHttpRequests(
+                        auth -> auth.requestMatchers("/actuator/health")
+                                .permitAll() // Let AWS ECS check health without a token
+                                .anyRequest()
+                                .authenticated() // Require a valid Cognito JWT token for everything else
+                        )
+                .oauth2ResourceServer(
+                        oauth2 -> oauth2.jwt(
+                                jwt -> {}) // Enables JWT validation using the issuer-uri in application.properties
+                        );
+
         return http.build();
     }
 }

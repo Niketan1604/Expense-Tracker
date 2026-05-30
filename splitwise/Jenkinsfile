@@ -75,7 +75,7 @@ pipeline {
         stage('Lint Scan') {
             steps {
                 dir('splitwise') {
-                    sh './mvnw checkstyle:check'
+                    sh './mvnw spotless:check'
                 }
             }
         }
