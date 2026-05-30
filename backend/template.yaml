@@ -33,10 +33,10 @@ Parameters:
 Globals:
   Function:
     Runtime: nodejs24.x
-    Architectures: [arm64]      # Graviton2 — cheaper + faster than x86
-    Timeout: 29                 # API Gateway HTTP API hard limit is 30s
-    MemorySize: 256             # good balance of cost vs cold start on arm64
-    Tracing: Active             # X-Ray — 100k traces/month free tier
+    Architectures: [arm64] # Graviton2 — cheaper + faster than x86
+    Timeout: 29 # API Gateway HTTP API hard limit is 30s
+    MemorySize: 256 # good balance of cost vs cold start on arm64
+    Tracing: Active # X-Ray — 100k traces/month free tier
     CodeUri: ./
     Environment:
       Variables:
@@ -55,7 +55,6 @@ Globals:
 # Resources
 # =========================================================
 Resources:
-
   # ───────────────────────────────────────────────────────
   # IAM — Lambda Execution Role
   #
@@ -114,7 +113,7 @@ Resources:
                 Action:
                   - xray:PutTraceSegments
                   - xray:PutTelemetryRecords
-                Resource: "*"   # X-Ray does not support resource-level permissions
+                Resource: "*" # X-Ray does not support resource-level permissions
 
   # ───────────────────────────────────────────────────────
   # HTTP API (API Gateway v2)
@@ -337,7 +336,7 @@ Resources:
         Minify: true
         Target: es2020
         Sourcemap: true
-        EntryPoints: 
+        EntryPoints:
           - src/transaction/getTransaction/index.ts
 
   GetTransactionLogGroup:
@@ -473,7 +472,7 @@ Resources:
         DeleteBudget:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /budgets/{categoryId}
             Method: DELETE
     Metadata:
@@ -502,7 +501,7 @@ Resources:
         CreateCategory:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /categories
             Method: POST
     Metadata:
@@ -531,7 +530,7 @@ Resources:
         UpdateCategory:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /categories/{categoryId}
             Method: PUT
     Metadata:
@@ -560,7 +559,7 @@ Resources:
         DeleteCategory:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /categories/{categoryId}
             Method: DELETE
     Metadata:
@@ -589,7 +588,7 @@ Resources:
         GetCategories:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /categories
             Method: GET
     Metadata:
@@ -618,7 +617,7 @@ Resources:
         GetSummaryBreakdown:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /summary/breakdown
             Method: GET
     Metadata:
@@ -647,7 +646,7 @@ Resources:
         GetMonthlySummary:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /summary
             Method: GET
     Metadata:
@@ -676,7 +675,7 @@ Resources:
         GetTopCategories:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /summary/top-categories
             Method: GET
     Metadata:
@@ -705,7 +704,7 @@ Resources:
         GetTrend:
           Type: HttpApi
           Properties:
-            ApiId: !Ref HttpApi 
+            ApiId: !Ref HttpApi
             Path: /summary/trend
             Method: GET
     Metadata:
@@ -733,8 +732,8 @@ Resources:
       SecurityGroupIds:
         - !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/vpclink-sg-id}}"
       SubnetIds:
-        - !Select [0, !Split [",", !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/public-subnet-ids}}"]]
-        - !Select [1, !Split [",", !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/public-subnet-ids}}"]]
+        - !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/public-subnet-1-id}}"
+        - !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/public-subnet-2-id}}"
 
   SplitwiseIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -756,7 +755,7 @@ Resources:
     Properties:
       ApiId: !Ref HttpApi
       RouteKey: "ANY /api/{proxy+}"
-      Target: !Join [ "/", [ "integrations", !Ref SplitwiseIntegration ] ]
+      Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
 
   # ───────────────────────────────────────────────────────
   # SSM Export — API Endpoint
