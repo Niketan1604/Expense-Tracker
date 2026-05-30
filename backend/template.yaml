@@ -722,6 +722,42 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/${AppName}-${EnvName}-get-trend"
       RetentionInDays: !If [IsProd, 30, 7]
+
+  # ───────────────────────────────────────────────────────
+  # SPLITWISE ECS ROUTING (VPC Link & Cloud Map private integration)
+  # ───────────────────────────────────────────────────────
+  SplitwiseVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Sub "${AppName}-${EnvName}-splitwise-vpclink"
+      SecurityGroupIds:
+        - !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/vpclink-sg-id}}"
+      SubnetIds:
+        - !Select [0, !Split [",", !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/public-subnet-ids}}"]]
+        - !Select [1, !Split [",", !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-network/public-subnet-ids}}"]]
+
+  SplitwiseIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      Description: Private route to Splitwise Spring Boot ECS service via Cloud Map
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      ConnectionDetails:
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref SplitwiseVpcLink
+      IntegrationUri: !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-compute/cloudmap-service-arn}}"
+      PayloadFormatVersion: "1.0"
+      RequestParameters:
+        append:header.port: "'8080'"
+
+  SplitwiseRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "ANY /api/{proxy+}"
+      Target: !Join [ "/", [ "integrations", !Ref SplitwiseIntegration ] ]
+
   # ───────────────────────────────────────────────────────
   # SSM Export — API Endpoint
   #
