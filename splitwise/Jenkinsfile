@@ -1,0 +1,153 @@
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '3'))
+    }
+
+    environment {
+        APP_NAME       = 'flowmint'
+        AWS_REGION     = 'ap-south-1'
+        AWS_ACCOUNT_ID = credentials('aws-account-id')
+        MAVEN_OPTS     = '-Xmx512m'
+    }
+
+    stages {
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 1 — Setup Environment
+        // ─────────────────────────────────────────────────────────────
+        stage('Setup Environment') {
+            steps {
+                script {
+                    env.ENV_NAME = env.BRANCH_NAME == 'main' ? 'prod' : 'dev'
+                    env.DEPLOY_ROLE_ARN = "arn:aws:iam::${env.AWS_ACCOUNT_ID}:role/${env.APP_NAME}-${env.ENV_NAME}-jenkins-deploy-role"
+                    echo "Branch:      ${env.BRANCH_NAME}"
+                    echo "Environment: ${env.ENV_NAME}"   
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 2 — Assume Role
+        // ─────────────────────────────────────────────────────────────
+        stage('Assume Role') {
+            steps {
+                script {
+                    def creds = sh(
+                        script: """
+                            aws sts assume-role \
+                                --role-arn ${env.DEPLOY_ROLE_ARN} \
+                                --role-session-name jenkins-splitwise-\$(date +%s) \
+                                --duration-seconds 3600 \
+                                --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+                                --output text
+                        """,
+                        returnStdout: true
+                    ).trim().split('\s+')
+
+                    env.AWS_ACCESS_KEY_ID     = creds[0]
+                    env.AWS_SECRET_ACCESS_KEY = creds[1]
+                    env.AWS_SESSION_TOKEN     = creds[2]
+
+                    sh 'aws sts get-caller-identity'
+                }
+            }
+        }
+        
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 3 — Test
+        // Activates the 'test' Spring profile so H2 is used instead of
+        // a live PostgreSQL database. JwtDecoder is mocked inside the
+        // @SpringBootTest class so no Cognito network call is made.
+        // ─────────────────────────────────────────────────────────────
+        stage('Test') {
+            steps {
+                sh './mvnw test -Dspring.profiles.active=test'
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 4 — Lint Scan
+        // ─────────────────────────────────────────────────────────────
+        stage('Lint Scan') {
+            steps {
+                sh './mvnw checkstyle:check'
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 5 — Vulnerability And Security Scan
+        // ─────────────────────────────────────────────────────────────
+        stage('Vulnerability Scan') {
+            steps {
+                sh './mvnw dependency-check:check'
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 6 — Docker Build
+        // ─────────────────────────────────────────────────────────────
+        stage('Build') {
+            steps {
+                script {
+                    env.ECR_REPO = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.APP_NAME}-${env.ENV_NAME}-splitwise"
+                    env.IMAGE_TAG = "${env.BUILD_NUMBER}" // Use Jenkins build number for unique tags
+                    
+                    // Build image and tag it twice (Unique ID + Latest)
+                    sh "docker build -t ${env.ECR_REPO}:${env.IMAGE_TAG} -t ${env.ECR_REPO}:latest ."
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 7 — Docker Push to ECR
+        // ─────────────────────────────────────────────────────────────
+        stage('Publish Image to ECR') {
+            steps {
+                script {
+                    sh "aws ecr get-login-password --region ${env.AWS_REGION} | docker login --username AWS --password-stdin ${env.ECR_REPO}"
+
+                    sh "docker push ${env.ECR_REPO}:${env.IMAGE_TAG}"
+                    sh "docker push ${env.ECR_REPO}:latest"
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // STAGE 8 — Deploy to ECS
+        // ─────────────────────────────────────────────────────────────
+        stage('Deploy to ECS') {
+            steps {
+                script {
+                    def clusterName = "${env.APP_NAME}-${env.ENV_NAME}-splitwise-cluster"
+                    def serviceName = "${env.APP_NAME}-${env.ENV_NAME}-splitwise"
+                    
+                    sh """
+                        aws ecs update-service \
+                            --cluster ${clusterName} \
+                            --service ${serviceName} \
+                            --force-new-deployment \
+                            --desired-count 1 \
+                            --region ${env.AWS_REGION}
+                    """
+                }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // POST CLEANUP
+    // ─────────────────────────────────────────────────────────────
+    post {
+        always {
+            echo 'Cleaning up workspace and removing local Docker images to save space on t3.micro...'
+            
+            // Delete the local Docker images since they are safely in AWS ECR
+            sh "docker rmi ${env.ECR_REPO}:${env.IMAGE_TAG} || true"
+            sh "docker rmi ${env.ECR_REPO}:latest || true"
+            
+            // Delete all source code and temporary files from the Jenkins workspace
+            cleanWs()
+        }
+    }
+}
