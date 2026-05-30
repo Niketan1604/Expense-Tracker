@@ -62,7 +62,9 @@ pipeline {
         // ─────────────────────────────────────────────────────────────
         stage('Test') {
             steps {
-                sh './mvnw test -Dspring.profiles.active=test'
+                dir('splitwise') {
+                    sh './mvnw test -Dspring.profiles.active=test'
+                }
             }
         }
 
@@ -71,7 +73,9 @@ pipeline {
         // ─────────────────────────────────────────────────────────────
         stage('Lint Scan') {
             steps {
-                sh './mvnw checkstyle:check'
+                dir('splitwise') {
+                    sh './mvnw checkstyle:check'
+                }
             }
         }
 
@@ -80,7 +84,9 @@ pipeline {
         // ─────────────────────────────────────────────────────────────
         stage('Vulnerability Scan') {
             steps {
-                sh './mvnw dependency-check:check'
+                dir('splitwise') {
+                    sh './mvnw dependency-check:check'
+                }
             }
         }
 
@@ -94,7 +100,9 @@ pipeline {
                     env.IMAGE_TAG = "${env.BUILD_NUMBER}" // Use Jenkins build number for unique tags
                     
                     // Build image and tag it twice (Unique ID + Latest)
-                    sh "docker build -t ${env.ECR_REPO}:${env.IMAGE_TAG} -t ${env.ECR_REPO}:latest ."
+                    dir('splitwise') {
+                        sh "docker build -t ${env.ECR_REPO}:${env.IMAGE_TAG} -t ${env.ECR_REPO}:latest ."
+                    }
                 }
             }
         }
