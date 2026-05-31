@@ -431,6 +431,19 @@ export class FlowmintIamStack extends Stack {
       resources: ['*']
     }));
 
+    // RDS — Jenkins pipeline needs to start/stop DB instances to save costs
+    jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'rds:StartDBInstance',
+        'rds:StopDBInstance',
+        'rds:DescribeDBInstances'
+      ],
+      resources: [
+        `arn:aws:rds:${this.region}:${this.account}:db:${appName}-${envName}-*`
+      ]
+    }));
+
     // CloudFormation — Jenkins creates/updates stacks and monitors progress
     jenkinsDeployRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
