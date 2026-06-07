@@ -32,9 +32,39 @@ public class GroupController {
 
     @PutMapping("/{groupId}")
     public ResponseEntity<Group> updateGroup(
-            @PathVariable java.util.UUID groupId, @Valid @RequestBody UpdateGroupRequest request) {
-
-        Group updatedGroup = groupService.updateGroup(groupId, request);
+            @PathVariable java.util.UUID groupId, @Valid @RequestBody UpdateGroupRequest request, @AuthenticationPrincipal Jwt jwt) {
+        String cognitoId = jwt.getSubject();
+        Group updatedGroup = groupService.updateGroup(groupId, request, cognitoId);
         return ResponseEntity.ok(updatedGroup);
+    }
+
+    @PostMapping("/{groupId}/leave")
+    public ResponseEntity<Void> leaveGroup(
+            @PathVariable java.util.UUID groupId, @AuthenticationPrincipal Jwt jwt) {
+        String cognitoId = jwt.getSubject();
+        groupService.leaveGroup(groupId, cognitoId);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping
+    public ResponseEntity<java.util.List<com.flowmint.splitwise.dto.GroupResponse>> getGroups(
+            @AuthenticationPrincipal Jwt jwt) {
+        String cognitoId = jwt.getSubject();
+        return ResponseEntity.ok(groupService.getGroups(cognitoId));
+    }
+
+    @GetMapping("/{groupId}")
+    public ResponseEntity<com.flowmint.splitwise.dto.GroupResponse> getGroup(
+            @PathVariable java.util.UUID groupId, @AuthenticationPrincipal Jwt jwt) {
+        String cognitoId = jwt.getSubject();
+        return ResponseEntity.ok(groupService.getGroupDetails(groupId, cognitoId));
+    }
+
+    @DeleteMapping("/{groupId}")
+    public ResponseEntity<Void> deleteGroup(
+            @PathVariable java.util.UUID groupId, @AuthenticationPrincipal Jwt jwt) {
+        String cognitoId = jwt.getSubject();
+        groupService.deleteGroup(groupId, cognitoId);
+        return ResponseEntity.ok().build();
     }
 }

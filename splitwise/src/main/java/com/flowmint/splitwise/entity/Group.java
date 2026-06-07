@@ -23,6 +23,9 @@ public class Group {
 
     private String description;
 
+    @Column(name = "admin_id")
+    private String adminId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

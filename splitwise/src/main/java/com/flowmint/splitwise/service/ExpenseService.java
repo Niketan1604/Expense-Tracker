@@ -1,12 +1,16 @@
 package com.flowmint.splitwise.service;
 
 import com.flowmint.splitwise.dto.AddExpenseRequest;
+import com.flowmint.splitwise.dto.ExpenseResponse;
 import com.flowmint.splitwise.entity.*;
 import com.flowmint.splitwise.repository.ExpenseRepository;
 import com.flowmint.splitwise.repository.GroupRepository;
 import com.flowmint.splitwise.repository.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +29,7 @@ public class ExpenseService {
     }
 
     @Transactional
-    public Expense addExpense(AddExpenseRequest request) {
+    public ExpenseResponse addExpense(AddExpenseRequest request) {
 
         // 1. Validate the Group and the User who paid
         Group group = groupRepository
@@ -127,9 +131,169 @@ public class ExpenseService {
         }
 
         // 5. Save everything!
-        // Because of CascadeType.ALL on the Expense entity, this single save() call
-        // will save the Expense AND all the ExpenseShares into the database
-        // automatically.
-        return expenseRepository.save(expense);
+        Expense saved = expenseRepository.save(expense);
+
+        // 6. Return a safe DTO (avoids circular JSON serialization of the entity graph)
+        return ExpenseResponse.builder()
+                .id(saved.getId())
+                .description(saved.getDescription())
+                .totalAmount(saved.getTotalAmount())
+                .currency(saved.getCurrency())
+                .splitType(saved.getSplitType())
+                .createdAt(saved.getCreatedAt())
+                .paidByUserId(saved.getPaidBy().getId())
+                .paidByUserName(saved.getPaidBy().getName())
+                .shares(saved.getShares().stream()
+                        .map(share -> ExpenseResponse.ExpenseShareDto.builder()
+                                .userId(share.getUser().getId())
+                                .userName(share.getUser().getName())
+                                .owedAmount(share.getOwedAmount())
+                                .build())
+                        .collect(Collectors.toList()))
+                .build();
+    }
+
+    @Transactional
+    public ExpenseResponse updateExpense(UUID expenseId, AddExpenseRequest request) {
+        Expense expense = expenseRepository.findById(expenseId)
+                .orElseThrow(() -> new RuntimeException("Expense not found"));
+
+        Group group = groupRepository
+                .findById(request.getGroupId())
+                .orElseThrow(() -> new RuntimeException("Group not found"));
+
+        User paidBy = userRepository
+                .findById(request.getPaidByUserId())
+                .orElseThrow(() -> new RuntimeException("The specified payer user does not exist"));
+
+        expense.setDescription(request.getDescription());
+        expense.setTotalAmount(request.getTotalAmount());
+        expense.setCurrency(request.getCurrency().toUpperCase());
+        expense.setSplitType(request.getSplitType());
+        expense.setGroup(group);
+        expense.setPaidBy(paidBy);
+        expense.setFlowmintExpenseId(request.getFlowmintExpenseId());
+
+        expense.getShares().clear();
+
+        int numUsers = request.getSplits().size();
+        if (numUsers == 0) {
+            throw new RuntimeException("Cannot split an expense with 0 users");
+        }
+
+        BigDecimal totalAmount = request.getTotalAmount();
+        BigDecimal runningTotal = BigDecimal.ZERO;
+
+        for (int i = 0; i < request.getSplits().size(); i++) {
+            AddExpenseRequest.UserSplit splitReq = request.getSplits().get(i);
+
+            User user = userRepository
+                    .findById(splitReq.getUserId())
+                    .orElseThrow(() -> new RuntimeException("User in split not found: " + splitReq.getUserId()));
+
+            BigDecimal owedAmount = BigDecimal.ZERO;
+
+            switch (request.getSplitType()) {
+                case EQUAL:
+                    owedAmount = totalAmount.divide(new BigDecimal(numUsers), 2, RoundingMode.HALF_UP);
+                    if (i == request.getSplits().size() - 1) {
+                        owedAmount = totalAmount.subtract(runningTotal);
+                    }
+                    break;
+                case EXACT:
+                    owedAmount = splitReq.getValue();
+                    break;
+                case PERCENTAGE:
+                    owedAmount = totalAmount
+                            .multiply(splitReq.getValue())
+                            .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+                    if (i == request.getSplits().size() - 1) {
+                        owedAmount = totalAmount.subtract(runningTotal);
+                    }
+                    break;
+                case SHARES:
+                    BigDecimal totalShares = request.getSplits().stream()
+                            .map(AddExpenseRequest.UserSplit::getValue)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    owedAmount = totalAmount.multiply(splitReq.getValue()).divide(totalShares, 2, RoundingMode.HALF_UP);
+                    if (i == request.getSplits().size() - 1) {
+                        owedAmount = totalAmount.subtract(runningTotal);
+                    }
+                    break;
+            }
+
+            ExpenseShare share = new ExpenseShare();
+            share.setUser(user);
+            share.setOwedAmount(owedAmount);
+            expense.addShare(share);
+
+            runningTotal = runningTotal.add(owedAmount);
+        }
+
+        if (request.getSplitType() == SplitType.EXACT) {
+            if (runningTotal.compareTo(totalAmount) != 0) {
+                throw new RuntimeException(
+                        "Exact splits sum (" + runningTotal + ") do not equal total amount (" + totalAmount + ")");
+            }
+        }
+
+        Expense saved = expenseRepository.save(expense);
+
+        return ExpenseResponse.builder()
+                .id(saved.getId())
+                .description(saved.getDescription())
+                .totalAmount(saved.getTotalAmount())
+                .currency(saved.getCurrency())
+                .splitType(saved.getSplitType())
+                .createdAt(saved.getCreatedAt())
+                .paidByUserId(saved.getPaidBy().getId())
+                .paidByUserName(saved.getPaidBy().getName())
+                .shares(saved.getShares().stream()
+                        .map(share -> ExpenseResponse.ExpenseShareDto.builder()
+                                .userId(share.getUser().getId())
+                                .userName(share.getUser().getName())
+                                .owedAmount(share.getOwedAmount())
+                                .build())
+                        .collect(Collectors.toList()))
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExpenseResponse> getExpensesForGroup(UUID groupId, String cognitoId) {
+        // Validate user has access to group
+        Group group = groupRepository
+                .findByIdAndMembers_CognitoId(groupId, cognitoId)
+                .orElseThrow(() -> new RuntimeException("Group not found or you do not have access"));
+
+        List<Expense> expenses = expenseRepository.findByGroupIdOrderByCreatedAtDesc(group.getId());
+
+        return expenses.stream()
+                .map(exp -> ExpenseResponse.builder()
+                        .id(exp.getId())
+                        .description(exp.getDescription())
+                        .totalAmount(exp.getTotalAmount())
+                        .currency(exp.getCurrency())
+                        .splitType(exp.getSplitType())
+                        .createdAt(exp.getCreatedAt())
+                        .updatedAt(exp.getUpdatedAt())
+                        .updatedByUserName(exp.getUpdatedBy() != null ? exp.getUpdatedBy().getName() : null)
+                        .paidByUserId(exp.getPaidBy().getId())
+                        .paidByUserName(exp.getPaidBy().getName())
+                        .shares(exp.getShares().stream()
+                                .map(share -> ExpenseResponse.ExpenseShareDto.builder()
+                                        .userId(share.getUser().getId())
+                                        .userName(share.getUser().getName())
+                                        .owedAmount(share.getOwedAmount())
+                                        .build())
+                                .collect(Collectors.toList()))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void deleteExpense(UUID expenseId) {
+        Expense expense = expenseRepository.findById(expenseId)
+                .orElseThrow(() -> new RuntimeException("Expense not found"));
+        expenseRepository.delete(expense);
     }
 }

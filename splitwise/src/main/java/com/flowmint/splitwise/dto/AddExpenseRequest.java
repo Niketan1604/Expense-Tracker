@@ -43,7 +43,7 @@ public class AddExpenseRequest {
         @NotNull(message = "User ID is required")
         private UUID userId;
 
-        @Positive(message = "Split value must be greater than zero")
+        @PositiveOrZero(message = "Split value must be zero or greater")
         private BigDecimal value;
     }
 }

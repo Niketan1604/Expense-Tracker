@@ -10,6 +10,13 @@ public class UpdateGroupRequest {
     private String name;
     private String description;
 
-    // List of NEW members to add to the group
-    private List<CreateGroupRequest.MemberRequest> newMembers;
+    // Full list of members to sync
+    private List<MemberUpdateRequest> members;
+
+    @Data
+    public static class MemberUpdateRequest {
+        private java.util.UUID id; // If null, it's a new member to add
+        private String name;
+        private String email;
+    }
 }

@@ -14,4 +14,10 @@ public interface GroupRepository extends JpaRepository<Group, UUID> {
 
     // Checks if a group with the given name already exists for a specific user (case-sensitive)
     boolean existsByNameAndMembers_Id(String name, UUID userId);
+
+    // Fetch all groups for a user via their Cognito ID
+    List<Group> findByMembers_CognitoId(String cognitoId);
+
+    // Fetch a specific group, ensuring the user is a member
+    java.util.Optional<Group> findByIdAndMembers_CognitoId(UUID id, String cognitoId);
 }
