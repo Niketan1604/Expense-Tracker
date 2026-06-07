@@ -107,7 +107,7 @@ export default function BudgetsPage() {
           await budgetsApi.delete(budget.categoryId, month)
           toast.success('Budget removed')
           refetch()
-        } catch (err) {
+        } catch {
           toast.error('Failed to remove budget')
         }
       }

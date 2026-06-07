@@ -1,7 +1,7 @@
 'use client'
 import { useState, Suspense, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { ChevronLeft, Plus, Receipt, Users, ReceiptIndianRupee, Settings, LogOut, Trash2, Edit2, Minus } from 'lucide-react'
+import { ChevronLeft, Plus, Receipt, ReceiptIndianRupee, Settings, LogOut, Trash2, Edit2, Minus } from 'lucide-react'
 import { useSplitwiseGroup, useSplitwiseExpenses, useProfile } from '@/hooks/useApi'
 import { splitwiseApi } from '@/lib/api'
 import { formatAmount, formatDate } from '@/lib/format'
@@ -20,14 +20,13 @@ function EditGroupModal({ group, currentUserId, onClose, onSave }: {
   const [members, setMembers] = useState<{ id?: string; name: string; email: string; expensesCount?: number }[]>([])
   const [loading, setLoading] = useState(false)
   const [confirmConfig, setConfirmConfig] = useState<{isOpen: boolean, title?: string, message: string, onConfirm: () => void} | null>(null);
-  const router = useRouter()
   const toast = useToast()
 
   useEffect(() => {
     const fetchExpensesAndInit = async () => {
       try {
         const expenses = await splitwiseApi.getExpenses(group.id)
-        let initMembers = group.members.map(m => {
+        const initMembers = group.members.map(m => {
           const count = expenses.filter(e => e.paidByUserId === m.userId || e.shares.some(s => s.userId === m.userId)).length
           return { id: m.userId, name: m.name, email: m.email || '', expensesCount: count }
         })
@@ -47,7 +46,7 @@ function EditGroupModal({ group, currentUserId, onClose, onSave }: {
       }
     }
     fetchExpensesAndInit()
-  }, [group])
+  }, [group, currentUserId])
 
   const handleAddMember = () => {
     if (members.length < 10) {
@@ -64,15 +63,15 @@ function EditGroupModal({ group, currentUserId, onClose, onSave }: {
     setMembers(members.filter((_, i) => i !== index))
   }
 
-  const performSave = async (membersPayload: any[]) => {
+  const performSave = async (membersPayload: { id?: string; name: string; email: string }[]) => {
     setLoading(true)
     try {
       await splitwiseApi.updateGroup(group.id, { name, description, members: membersPayload })
       toast.success('Group updated successfully')
       onSave()
       onClose()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err.message || 'Failed to update group')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update group')
     } finally {
       setLoading(false)
     }
@@ -112,8 +111,8 @@ function EditGroupModal({ group, currentUserId, onClose, onSave }: {
       }
 
       performSave(membersPayload);
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to update group')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update group')
     }
   }
 
@@ -439,8 +438,8 @@ function ExpenseModal({ expenseToEdit, currentUserId, groupId, members, onClose,
       
       onSave()
       onClose()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err.message || 'Failed to save expense')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save expense')
     } finally {
       setLoading(false)
     }
@@ -738,7 +737,7 @@ function GroupDetailsContent() {
             toast.success('Left group')
           }
           router.push('/splitwise')
-        } catch (err) {
+        } catch {
           toast.error('Failed to leave/delete group')
           setIsLeaving(false)
         }
@@ -757,7 +756,7 @@ function GroupDetailsContent() {
           await splitwiseApi.deleteExpense(expenseId)
           toast.success('Expense deleted')
           refreshData()
-        } catch (err) {
+        } catch {
           toast.error('Failed to delete expense')
         }
       }

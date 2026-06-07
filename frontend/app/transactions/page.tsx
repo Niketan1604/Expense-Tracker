@@ -41,7 +41,7 @@ function TxnModal({ txn, categories, onClose, onSave }: {
         categoryId, date,
         description: description || undefined,
       }
-      txn ? await transactionsApi.update(txn.transactionId, body) : await transactionsApi.create(body)
+      await (txn ? transactionsApi.update(txn.transactionId, body) : transactionsApi.create(body))
       toast.success(txn ? 'Transaction updated' : 'Transaction created')
       onSave(); onClose()
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
@@ -236,7 +236,7 @@ export default function TransactionsPage() {
   // Fetch ALL transactions for the month (no server-side cursor, we paginate client-side)
   const [allTxns, setAllTxns] = useState<Transaction[]>([])
   const [cursor, setCursor] = useState<string | undefined>()
-  const [fullyLoaded, setFullyLoaded] = useState(false)
+  const fullyLoadedRef = useRef(false)
 
   const { data: res, loading, refetch: baseRefetch } = useTransactions({
     month,
@@ -250,7 +250,7 @@ export default function TransactionsPage() {
   useEffect(() => {
     setAllTxns([])
     setCursor(undefined)
-    setFullyLoaded(false)
+    fullyLoadedRef.current = false
     setCurrentPage(1)
   }, [month, typeFilter, catFilter])
 
@@ -267,12 +267,12 @@ export default function TransactionsPage() {
         // Auto-load all pages from server so client-side pagination works
         setCursor(res.nextCursor)
       } else {
-        setFullyLoaded(true)
+        fullyLoadedRef.current = true
       }
     }
   }, [res, loading, cursor])
 
-  const refetch = () => { setCursor(undefined); setFullyLoaded(false); baseRefetch() }
+  const refetch = () => { setCursor(undefined); fullyLoadedRef.current = false; baseRefetch() }
   const { data: categories } = useCategories()
   const catMap = Object.fromEntries((categories ?? []).map(c => [c.categoryId, c.name]))
 
@@ -316,7 +316,7 @@ export default function TransactionsPage() {
           toast.success('Transaction deleted');
           refetch() 
         }
-        catch (err) { toast.error('Failed to delete transaction') }
+        catch { toast.error('Failed to delete transaction') }
         finally { setDeleting(null) }
       }
     });
@@ -325,7 +325,6 @@ export default function TransactionsPage() {
   const openEdit = (txn: Transaction) => { setEditTxn(txn); setModalOpen(true) }
   const openNew = () => { setEditTxn(undefined); setModalOpen(true) }
 
-  const isLoadingAll = loading || (!fullyLoaded && allTxns.length > 0)
 
   return (
     <>

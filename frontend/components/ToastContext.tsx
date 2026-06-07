@@ -164,7 +164,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // success is a no-op — errors only
-  const success = useCallback((_msg: string) => {}, []);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const success = useCallback((_msg: string) => { /* success toasts are suppressed */ }, []);
   const error = useCallback((msg: string) => addToast(msg, 'error'), [addToast]);
   const info = useCallback((msg: string) => addToast(msg, 'info'), [addToast]);
 

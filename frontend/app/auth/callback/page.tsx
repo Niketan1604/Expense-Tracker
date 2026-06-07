@@ -72,7 +72,7 @@ export default function AuthCallbackPage() {
     };
 
     run();
-  }, []);
+  }, [router]);
 
   return (
     <div

@@ -2,8 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Plus, Users } from 'lucide-react'
-import { useSplitwiseGroups, useProfile } from '@/hooks/useApi'
-import { formatAmount } from '@/lib/format'
+import { useSplitwiseGroups } from '@/hooks/useApi'
 import { useToast } from '@/components/ToastContext'
 
 function CreateGroupModal({ onClose, onSave }: { onClose: () => void, onSave: () => void }) {
@@ -142,7 +141,6 @@ function CreateGroupModal({ onClose, onSave }: { onClose: () => void, onSave: ()
 
 export default function SplitwisePage() {
   const { data: groups, loading, refetch } = useSplitwiseGroups()
-  const { data: profile } = useProfile()
   const [modalOpen, setModalOpen] = useState(false)
 
   return (

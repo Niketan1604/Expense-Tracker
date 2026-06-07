@@ -21,7 +21,7 @@ function CatModal({ category, onClose, onSave }: { category?: Category; onClose:
     e.preventDefault(); setLoading(true)
     try {
       const body: CreateCategoryBody = { name, icon: icon || undefined, color }
-      category ? await categoriesApi.update(category.categoryId, body) : await categoriesApi.create(body)
+      await (category ? categoriesApi.update(category.categoryId, body) : categoriesApi.create(body))
       toast.success(category ? 'Category updated' : 'Category created')
       onSave(); onClose()
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
