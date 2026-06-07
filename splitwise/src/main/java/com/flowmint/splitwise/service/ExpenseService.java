@@ -155,8 +155,8 @@ public class ExpenseService {
 
     @Transactional
     public ExpenseResponse updateExpense(UUID expenseId, AddExpenseRequest request) {
-        Expense expense = expenseRepository.findById(expenseId)
-                .orElseThrow(() -> new RuntimeException("Expense not found"));
+        Expense expense =
+                expenseRepository.findById(expenseId).orElseThrow(() -> new RuntimeException("Expense not found"));
 
         Group group = groupRepository
                 .findById(request.getGroupId())
@@ -276,7 +276,8 @@ public class ExpenseService {
                         .splitType(exp.getSplitType())
                         .createdAt(exp.getCreatedAt())
                         .updatedAt(exp.getUpdatedAt())
-                        .updatedByUserName(exp.getUpdatedBy() != null ? exp.getUpdatedBy().getName() : null)
+                        .updatedByUserName(
+                                exp.getUpdatedBy() != null ? exp.getUpdatedBy().getName() : null)
                         .paidByUserId(exp.getPaidBy().getId())
                         .paidByUserName(exp.getPaidBy().getName())
                         .shares(exp.getShares().stream()
@@ -292,8 +293,8 @@ public class ExpenseService {
 
     @Transactional
     public void deleteExpense(UUID expenseId) {
-        Expense expense = expenseRepository.findById(expenseId)
-                .orElseThrow(() -> new RuntimeException("Expense not found"));
+        Expense expense =
+                expenseRepository.findById(expenseId).orElseThrow(() -> new RuntimeException("Expense not found"));
         expenseRepository.delete(expense);
     }
 }

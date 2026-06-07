@@ -26,7 +26,11 @@ public class GroupService {
     private final BalanceService balanceService;
     private final ExpenseRepository expenseRepository;
 
-    public GroupService(GroupRepository groupRepository, UserRepository userRepository, BalanceService balanceService, ExpenseRepository expenseRepository) {
+    public GroupService(
+            GroupRepository groupRepository,
+            UserRepository userRepository,
+            BalanceService balanceService,
+            ExpenseRepository expenseRepository) {
         this.groupRepository = groupRepository;
         this.userRepository = userRepository;
         this.balanceService = balanceService;
@@ -115,7 +119,9 @@ public class GroupService {
                     // Check if member has expenses
                     long expenseCount = expenseRepository.countExpensesInvolvingUser(groupId, member.getId());
                     if (expenseCount > 0) {
-                        throw new RuntimeException("Cannot remove member '" + member.getName() + "' because they are involved in " + expenseCount + " expenses. Please delete or modify those expenses first.");
+                        throw new RuntimeException(
+                                "Cannot remove member '" + member.getName() + "' because they are involved in "
+                                        + expenseCount + " expenses. Please delete or modify those expenses first.");
                     }
                     group.getMembers().remove(member);
                 }
@@ -127,7 +133,8 @@ public class GroupService {
                     // Update existing member if it's a ghost user
                     User existingMember = group.getMembers().stream()
                             .filter(m -> m.getId().equals(memberReq.getId()))
-                            .findFirst().orElse(null);
+                            .findFirst()
+                            .orElse(null);
 
                     if (existingMember != null && existingMember.getCognitoId().startsWith("dummy_")) {
                         existingMember.setName(memberReq.getName());
@@ -166,11 +173,12 @@ public class GroupService {
 
     @Transactional
     public void leaveGroup(UUID groupId, String cognitoId) {
-        Group group = groupRepository.findByIdAndMembers_CognitoId(groupId, cognitoId)
+        Group group = groupRepository
+                .findByIdAndMembers_CognitoId(groupId, cognitoId)
                 .orElseThrow(() -> new RuntimeException("Group not found or you are not a member"));
-        
-        User leavingUser = userRepository.findByCognitoId(cognitoId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        User leavingUser =
+                userRepository.findByCognitoId(cognitoId).orElseThrow(() -> new RuntimeException("User not found"));
 
         // Delete all expenses involving this user in this group
         List<Expense> userExpenses = expenseRepository.findExpensesInvolvingUser(groupId, leavingUser.getId());
@@ -218,8 +226,7 @@ public class GroupService {
 
     @Transactional
     public void deleteGroup(UUID groupId, String cognitoId) {
-        Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
+        Group group = groupRepository.findById(groupId).orElseThrow(() -> new RuntimeException("Group not found"));
 
         if (!group.getAdminId().equals(cognitoId)) {
             throw new RuntimeException("Only the group admin can delete the group");

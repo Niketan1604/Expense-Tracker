@@ -32,15 +32,16 @@ public class GroupController {
 
     @PutMapping("/{groupId}")
     public ResponseEntity<Group> updateGroup(
-            @PathVariable java.util.UUID groupId, @Valid @RequestBody UpdateGroupRequest request, @AuthenticationPrincipal Jwt jwt) {
+            @PathVariable java.util.UUID groupId,
+            @Valid @RequestBody UpdateGroupRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
         String cognitoId = jwt.getSubject();
         Group updatedGroup = groupService.updateGroup(groupId, request, cognitoId);
         return ResponseEntity.ok(updatedGroup);
     }
 
     @PostMapping("/{groupId}/leave")
-    public ResponseEntity<Void> leaveGroup(
-            @PathVariable java.util.UUID groupId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Void> leaveGroup(@PathVariable java.util.UUID groupId, @AuthenticationPrincipal Jwt jwt) {
         String cognitoId = jwt.getSubject();
         groupService.leaveGroup(groupId, cognitoId);
         return ResponseEntity.ok().build();
@@ -61,8 +62,7 @@ public class GroupController {
     }
 
     @DeleteMapping("/{groupId}")
-    public ResponseEntity<Void> deleteGroup(
-            @PathVariable java.util.UUID groupId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Void> deleteGroup(@PathVariable java.util.UUID groupId, @AuthenticationPrincipal Jwt jwt) {
         String cognitoId = jwt.getSubject();
         groupService.deleteGroup(groupId, cognitoId);
         return ResponseEntity.ok().build();
