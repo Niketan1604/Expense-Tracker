@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { transactionsApi, categoriesApi, budgetsApi, summaryApi, userApi } from '@/lib/api'
+import { transactionsApi, categoriesApi, budgetsApi, summaryApi, userApi, splitwiseApi } from '@/lib/api'
 import { currentMonth } from '@/lib/format'
 import type { TransactionType, GetTransactionsParams } from '@/types'
 
@@ -35,3 +35,9 @@ export const useBreakdown = (month = currentMonth()) =>
 
 export const useTopCategories = (month = currentMonth(), type?: TransactionType, limit = 5) =>
   useFetch(async () => (await summaryApi.getTopCategories({ month, type, limit })).topCategories, [month, type, limit])
+
+// ── Splitwise Hooks ────────────────────────────────────────────────────────────
+
+export const useSplitwiseGroups   = () => useFetch(() => splitwiseApi.getGroups())
+export const useSplitwiseGroup    = (groupId: string) => useFetch(() => splitwiseApi.getGroup(groupId), [groupId])
+export const useSplitwiseExpenses = (groupId: string) => useFetch(() => splitwiseApi.getExpenses(groupId), [groupId])

@@ -82,7 +82,12 @@ body {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); }
   to   { opacity: 1; transform: translate(-50%, -50%); }
 }
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 .animate-fadeUp { animation: fadeUp 0.25s ease both; }
+.animate-slideInRight { animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 @keyframes shimmer {
   0%, 100% { opacity: 0.4; }
@@ -126,6 +131,15 @@ body {
   .fm-input:focus { border-color: var(--mint); }
   .fm-input::placeholder { color: var(--muted); }
   .fm-input option { background: var(--surface); color: var(--text); }
+  
+  .fm-input::-webkit-outer-spin-button,
+  .fm-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .fm-input[type=number] {
+    -moz-appearance: textfield;
+  }
 
   /* Buttons */
   .btn {

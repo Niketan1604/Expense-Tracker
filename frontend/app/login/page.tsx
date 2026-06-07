@@ -6,6 +6,7 @@ import { Mail, Lock, Eye, EyeOff, Wallet, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { signInWithRedirect } from 'aws-amplify/auth'
 import { userApi } from '@/lib/api'
+import { useToast } from '@/components/ToastContext'
 
 export default function LoginPage() {
   const { signIn } = useAuth()
@@ -15,11 +16,11 @@ export default function LoginPage() {
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [error, setError]       = useState('')
+  const toast = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true); setError('')
+    setLoading(true)
     try {
       await signIn(email, password)
       
@@ -31,17 +32,17 @@ export default function LoginPage() {
 
       router.replace('/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed')
+      toast.error(err instanceof Error ? err.message : 'Sign in failed')
     } finally { setLoading(false) }
   }
 
   const handleGoogle = async () => {
-    setGoogleLoading(true); setError('')
+    setGoogleLoading(true)
     try {
       await signInWithRedirect({ provider: 'Google' })
       // Page will redirect — no need to do anything after
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google sign in failed')
+      toast.error(err instanceof Error ? err.message : 'Google sign in failed')
       setGoogleLoading(false)
     }
   }
@@ -115,8 +116,6 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <div className="alert-error">{error}</div>}
-
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--muted)' }}>Email</label>
               <div className="relative">

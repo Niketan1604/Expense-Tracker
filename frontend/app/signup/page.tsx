@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { signInWithRedirect } from 'aws-amplify/auth'
 
 import { userApi } from '@/lib/api'
+import { useToast } from '@/components/ToastContext'
 
 type Step = 'form' | 'confirm'
 
@@ -21,22 +22,22 @@ export default function SignupPage() {
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [error, setError]       = useState('')
-  const [resent, setResent]     = useState(false)
+  const toast = useToast()
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true); setError('')
+    setLoading(true)
     try {
       await signUp(email, password, name)
       setStep('confirm')
-    } catch (err) { setError(err instanceof Error ? err.message : 'Sign up failed') }
+      toast.success('Check your email for the verification code')
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Sign up failed') }
     finally { setLoading(false) }
   }
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true); setError('')
+    setLoading(true)
     try {
       await confirmSignUp(email, code)
       await signIn(email, password)
@@ -48,23 +49,23 @@ export default function SignupPage() {
       }
 
       router.replace('/dashboard')
-    } catch (err) { setError(err instanceof Error ? err.message : 'Verification failed') }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Verification failed') }
     finally { setLoading(false) }
   }
 
   const handleResend = async () => {
     try {
       await resendCode(email)
-      setResent(true); setTimeout(() => setResent(false), 4000)
-    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to resend') }
+      toast.success(`Code resent to ${email}`)
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to resend') }
   }
 
   const handleGoogle = async () => {
-    setGoogleLoading(true); setError('')
+    setGoogleLoading(true)
     try {
       await signInWithRedirect({ provider: 'Google' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google sign in failed')
+      toast.error(err instanceof Error ? err.message : 'Google sign in failed')
       setGoogleLoading(false)
     }
   }
@@ -116,9 +117,6 @@ export default function SignupPage() {
           <p className="text-sm mb-8 font-medium" style={{ color: 'var(--muted)' }}>
             {step === 'form' ? 'Join FlowMint and start tracking your cash flow.' : `We sent a 6-digit code to ${email}`}
           </p>
-
-          {error  && <div className="alert-error mb-5">{error}</div>}
-          {resent && <div className="alert-success mb-5">Code resent to {email}</div>}
 
           {step === 'form' ? (
             <>

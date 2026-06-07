@@ -12,13 +12,17 @@ export const metadata: Metadata = {
   description: 'Personal Cash Flow Intelligence',
 }
 
+import { ToastProvider } from '@/components/ToastContext'
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body suppressHydrationWarning>
         <AmplifyProvider>
           <ThemeProvider>
-            <AppShell>{children}</AppShell>
+            <ToastProvider>
+              <AppShell>{children}</AppShell>
+            </ToastProvider>
           </ThemeProvider>
         </AmplifyProvider>
       </body>

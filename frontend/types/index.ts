@@ -143,3 +143,71 @@ export interface GetTopCategoriesParams {
 export interface GetTrendParams {
   months?: number;
 }
+
+// ── Splitwise types ────────────────────────────────────────────────────────────
+
+export type SplitType = 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
+
+export interface SplitwiseMember {
+  userId: string;
+  name: string;
+  email: string;
+  netBalance: number;
+}
+
+export interface SplitwiseGroup {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  adminId: string;
+  members: SplitwiseMember[];
+}
+
+export interface ExpenseShareDto {
+  userId: string;
+  userName: string;
+  owedAmount: number;
+}
+
+export interface SplitwiseExpense {
+  id: string;
+  description: string;
+  totalAmount: number;
+  currency: string;
+  splitType: SplitType;
+  createdAt: string;
+  updatedAt?: string;
+  updatedByUserName?: string;
+  paidByUserId: string;
+  paidByUserName: string;
+  shares: ExpenseShareDto[];
+}
+
+export interface CreateGroupBody {
+  name: string;
+  description?: string;
+  members?: { name: string; email: string }[];
+}
+
+export interface UpdateGroupBody {
+  name?: string;
+  description?: string;
+  members: { id?: string; name: string; email: string }[];
+}
+
+export interface UserSplit {
+  userId: string;
+  value: number; // The exact amount, percentage, or shares depending on SplitType
+}
+
+export interface CreateSplitwiseExpenseBody {
+  groupId: string;
+  description: string;
+  totalAmount: number;
+  currency: string;
+  splitType: SplitType;
+  paidByUserId: string;
+  flowmintExpenseId?: string;
+  splits: UserSplit[];
+}

@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { Plus, Pencil, Trash2, Tag } from 'lucide-react'
 import { useCategories } from '@/hooks/useApi'
 import { categoriesApi } from '@/lib/api'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useToast } from '@/components/ToastContext'
 import type { Category, CreateCategoryBody } from '@/types'
 
 const COLORS = ['#10b77f','#6366f1','#f43f5e','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6']
@@ -13,15 +15,16 @@ function CatModal({ category, onClose, onSave }: { category?: Category; onClose:
   const [icon, setIcon]     = useState(category?.icon  ?? '')
   const [color, setColor]   = useState(category?.color ?? COLORS[0])
   const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
+  const toast = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('')
+    e.preventDefault(); setLoading(true)
     try {
       const body: CreateCategoryBody = { name, icon: icon || undefined, color }
       category ? await categoriesApi.update(category.categoryId, body) : await categoriesApi.create(body)
+      toast.success(category ? 'Category updated' : 'Category created')
       onSave(); onClose()
-    } catch (err) { setError(err instanceof Error ? err.message : 'Failed') }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
     finally { setLoading(false) }
   }
 
@@ -30,7 +33,6 @@ function CatModal({ category, onClose, onSave }: { category?: Category; onClose:
       <div className="modal-box">
         <h2 className="modal-title">{category ? 'Edit Category' : 'New Category'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="alert-error">{error}</div>}
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>Name</label>
@@ -88,18 +90,32 @@ export default function CategoriesPage() {
   const [modalOpen, setModalOpen]   = useState(false)
   const [editCat, setEditCat]       = useState<Category | undefined>()
   const [deleting, setDeleting]     = useState<string | null>(null)
-  const [conflict, setConflict]     = useState('')
+  const [confirmConfig, setConfirmConfig] = useState<{isOpen: boolean, title?: string, message: string, onConfirm: () => void} | null>(null)
+  const toast = useToast()
 
-  const handleDelete = async (cat: Category) => {
-    if (!confirm(`Delete "${cat.name}"?`)) return
-    setDeleting(cat.categoryId); setConflict('')
-    try { await categoriesApi.delete(cat.categoryId); refetch() }
-    catch (err) {
-      const msg = err instanceof Error ? err.message : ''
-      if (msg.includes('409') || msg.toLowerCase().includes('conflict') || msg.toLowerCase().includes('active'))
-        setConflict(`Cannot delete "${cat.name}" — it has active transactions. Delete those first.`)
-    }
-    finally { setDeleting(null) }
+  const handleDelete = (cat: Category) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Delete Category',
+      message: `Are you sure you want to delete "${cat.name}"?`,
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setDeleting(cat.categoryId)
+        try { 
+          await categoriesApi.delete(cat.categoryId); 
+          toast.success('Category deleted')
+          refetch() 
+        }
+        catch (err) {
+          const msg = err instanceof Error ? err.message : ''
+          if (msg.includes('409') || msg.toLowerCase().includes('conflict') || msg.toLowerCase().includes('active'))
+            toast.error(`Cannot delete "${cat.name}" — it has active transactions. Delete those first.`)
+          else
+            toast.error('Failed to delete category')
+        }
+        finally { setDeleting(null) }
+      }
+    });
   }
 
   return (
@@ -114,13 +130,6 @@ export default function CategoriesPage() {
           <Plus className="w-4 h-4" /> New Category
         </button>
       </div>
-
-      {conflict && (
-        <div className="alert-warning flex items-start justify-between gap-3 mb-6">
-          <span>{conflict}</span>
-          <button onClick={() => setConflict('')} className="shrink-0 font-bold">✕</button>
-        </div>
-      )}
 
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -178,6 +187,18 @@ export default function CategoriesPage() {
       </div>
 
       {modalOpen && <CatModal category={editCat} onClose={() => setModalOpen(false)} onSave={refetch} />}
+
+      {confirmConfig && (
+        <ConfirmModal
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(null)}
+          confirmText="Yes, Delete"
+          cancelText="Cancel"
+        />
+      )}
     </>
   )
 }

@@ -5,6 +5,7 @@ import { useProfile } from "@/hooks/useApi";
 import { userApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/components/ThemeProvider";
+import { useToast } from "@/components/ToastContext";
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "JPY"];
 
 export default function ProfilePage() {
@@ -15,8 +16,7 @@ export default function ProfilePage() {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const toast = useToast();
 
   // Track original values to detect changes
   const [originalName, setOriginalName] = useState("");
@@ -42,17 +42,14 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setError("");
-    setSuccess(false);
     try {
       await userApi.updateProfile({ name, currency });
       setOriginalName(name);
       setOriginalCurrency(currency);
-      setSuccess(true);
+      toast.success('Profile updated successfully');
       refetch();
-      setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -175,14 +172,6 @@ export default function ProfilePage() {
           </h3>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <div className="alert-error">{error}</div>}
-            {success && (
-              <div className="alert-success flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" /> Profile updated
-                successfully.
-              </div>
-            )}
-
             <div>
               <label
                 className="block text-xs font-bold uppercase tracking-widest mb-1.5"

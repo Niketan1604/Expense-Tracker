@@ -4,6 +4,8 @@ import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, Chevrons
 import { useTransactions, useCategories } from '@/hooks/useApi'
 import { transactionsApi } from '@/lib/api'
 import { formatAmount, formatDate, formatMonth, currentMonth, prevMonth, nextMonth, decimalToPaise, todayISO } from '@/lib/format'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useToast } from '@/components/ToastContext'
 import type { Transaction, TransactionType, CreateTransactionBody } from '@/types'
 
 function MonthStepper({ value, onChange }: { value: string; onChange: (m: string) => void }) {
@@ -28,10 +30,10 @@ function TxnModal({ txn, categories, onClose, onSave }: {
   const [date, setDate] = useState(txn?.date ?? todayISO())
   const [description, setDesc] = useState(txn?.description ?? '')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const toast = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('')
+    e.preventDefault(); setLoading(true)
     try {
       const body: CreateTransactionBody = {
         transactionId: txn ? undefined : crypto.randomUUID(),
@@ -40,8 +42,9 @@ function TxnModal({ txn, categories, onClose, onSave }: {
         description: description || undefined,
       }
       txn ? await transactionsApi.update(txn.transactionId, body) : await transactionsApi.create(body)
+      toast.success(txn ? 'Transaction updated' : 'Transaction created')
       onSave(); onClose()
-    } catch (err) { setError(err instanceof Error ? err.message : 'Failed') }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
     finally { setLoading(false) }
   }
 
@@ -50,7 +53,6 @@ function TxnModal({ txn, categories, onClose, onSave }: {
       <div className="modal-box">
         <h2 className="modal-title">{txn ? 'Edit Transaction' : 'New Transaction'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="alert-error">{error}</div>}
 
           {/* Type toggle */}
           <div className="grid grid-cols-2 gap-2">
@@ -228,6 +230,8 @@ export default function TransactionsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editTxn, setEditTxn] = useState<Transaction | undefined>()
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [confirmConfig, setConfirmConfig] = useState<{isOpen: boolean, title?: string, message: string, onConfirm: () => void} | null>(null)
+  const toast = useToast()
 
   // Fetch ALL transactions for the month (no server-side cursor, we paginate client-side)
   const [allTxns, setAllTxns] = useState<Transaction[]>([])
@@ -299,11 +303,23 @@ export default function TransactionsPage() {
     setCurrentPage(1)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this transaction?')) return
-    setDeleting(id)
-    try { await transactionsApi.delete(id); refetch() }
-    finally { setDeleting(null) }
+  const handleDelete = (id: string) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Delete Transaction',
+      message: 'Are you sure you want to delete this transaction?',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        setDeleting(id)
+        try { 
+          await transactionsApi.delete(id); 
+          toast.success('Transaction deleted');
+          refetch() 
+        }
+        catch (err) { toast.error('Failed to delete transaction') }
+        finally { setDeleting(null) }
+      }
+    });
   }
 
   const openEdit = (txn: Transaction) => { setEditTxn(txn); setModalOpen(true) }
@@ -461,6 +477,18 @@ export default function TransactionsPage() {
       {modalOpen && (
         <TxnModal txn={editTxn} categories={categories ?? []}
           onClose={() => setModalOpen(false)} onSave={refetch} />
+      )}
+
+      {confirmConfig && (
+        <ConfirmModal
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(null)}
+          confirmText="Yes, Delete"
+          cancelText="Cancel"
+        />
       )}
     </>
   )

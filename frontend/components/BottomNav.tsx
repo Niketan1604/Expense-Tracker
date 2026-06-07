@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, ArrowLeftRight, Tag, Target, User } from 'lucide-react'
+import { LayoutDashboard, ArrowLeftRight, Tag, Target, User, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -9,6 +9,7 @@ const NAV = [
   { label: 'Txns',   icon: ArrowLeftRight,  href: '/transactions' },
   { label: 'Cats',   icon: Tag,             href: '/categories' },
   { label: 'Budget', icon: Target,          href: '/budgets' },
+  { label: 'Split',  icon: Users,           href: '/splitwise' },
   { label: 'Me',     icon: User,            href: '/profile' },
 ]
 

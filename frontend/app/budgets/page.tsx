@@ -4,6 +4,8 @@ import { Plus, Trash2, Target, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useBudgets, useCategories, useBreakdown, useMonthlyTotal } from '@/hooks/useApi'
 import { budgetsApi } from '@/lib/api'
 import { formatAmountCompact, formatMonth, currentMonth, prevMonth, nextMonth, decimalToPaise } from '@/lib/format'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useToast } from '@/components/ToastContext'
 import type { Budget } from '@/types'
 
 function MonthStepper({ value, onChange }: { value: string; onChange: (m: string) => void }) {
@@ -29,14 +31,15 @@ function BudgetModal({ month, categories, existing, onClose, onSave }: {
   const [categoryId, setCatId] = useState(available[0]?.categoryId ?? '')
   const [amount, setAmount]    = useState('')
   const [loading, setLoading]  = useState(false)
-  const [error, setError]      = useState('')
+  const toast = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('')
+    e.preventDefault(); setLoading(true)
     try {
       await budgetsApi.set({ categoryId, month, amount: decimalToPaise(parseFloat(amount)) })
+      toast.success('Budget created successfully')
       onSave(); onClose()
-    } catch (err) { setError(err instanceof Error ? err.message : 'Failed') }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed') }
     finally { setLoading(false) }
   }
 
@@ -51,7 +54,6 @@ function BudgetModal({ month, categories, existing, onClose, onSave }: {
           </>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <div className="alert-error">{error}</div>}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>Category</label>
               <select value={categoryId} onChange={e => setCatId(e.target.value)} required className="fm-input rounded-xl">
@@ -79,6 +81,8 @@ function BudgetModal({ month, categories, existing, onClose, onSave }: {
 export default function BudgetsPage() {
   const [month, setMonth]       = useState(currentMonth())
   const [modalOpen, setModalOpen] = useState(false)
+  const [confirmConfig, setConfirmConfig] = useState<{isOpen: boolean, title?: string, message: string, onConfirm: () => void} | null>(null)
+  const toast = useToast()
 
   const { data: budgets,      loading,  refetch } = useBudgets(month)
   const { data: categories }                      = useCategories()
@@ -92,10 +96,22 @@ export default function BudgetsPage() {
   const totalSpent  = (budgets ?? []).reduce((s, b) => s + (spendMap[b.categoryId] ?? 0), 0)
   const overallPct  = totalBudget > 0 ? Math.min((totalSpent / totalBudget) * 100, 100) : 0
 
-  const handleDelete = async (budget: Budget) => {
-    if (!confirm('Remove this budget?')) return
-    await budgetsApi.delete(budget.categoryId, month)
-    refetch()
+  const handleDelete = (budget: Budget) => {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Remove Budget',
+      message: 'Are you sure you want to remove this budget?',
+      onConfirm: async () => {
+        setConfirmConfig(null)
+        try {
+          await budgetsApi.delete(budget.categoryId, month)
+          toast.success('Budget removed')
+          refetch()
+        } catch (err) {
+          toast.error('Failed to remove budget')
+        }
+      }
+    });
   }
 
   return (
@@ -247,6 +263,18 @@ export default function BudgetsPage() {
       {modalOpen && (
         <BudgetModal month={month} categories={categories ?? []} existing={budgets ?? []}
           onClose={() => setModalOpen(false)} onSave={refetch} />
+      )}
+
+      {confirmConfig && (
+        <ConfirmModal
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(null)}
+          confirmText="Yes, Remove"
+          cancelText="Cancel"
+        />
       )}
     </>
   )
