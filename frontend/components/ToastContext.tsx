@@ -27,19 +27,15 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
   const [progress, setProgress] = useState(100);
   const rafRef = useRef<number | null>(null);
 
-  // Animate progress bar from 100 → 0 over DURATION ms
+  // Animate progress bar from 100 → 0 using a single CSS transition
   useEffect(() => {
-    const start = performance.now();
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const remaining = Math.max(0, 100 - (elapsed / DURATION) * 100);
-      setProgress(remaining);
-      if (remaining > 0) {
-        rafRef.current = requestAnimationFrame(tick);
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    // Wait for the initial 100% width to be painted, then set to 0 to trigger CSS transition
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setProgress(0);
+      });
+    });
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const isError = toast.type === 'error';
@@ -122,7 +118,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
             width: `${progress}%`,
             background: isError ? 'var(--red, #f43f5e)' : 'var(--mint)',
             borderRadius: '0 0 0 14px',
-            transition: 'width 0.1s linear',
+            transition: `width ${DURATION}ms linear`,
           }}
         />
       </div>
