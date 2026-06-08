@@ -116,6 +116,34 @@ Resources:
                 Resource: "*" # X-Ray does not support resource-level permissions
 
   # ───────────────────────────────────────────────────────
+  # API Gateway Cloud Map Discovery Role
+  #
+  # Required for HTTP API VPC Link to query Cloud Map and
+  # discover the dynamic IP addresses of the ECS tasks.
+  # Without this, the integration fails immediately with a 500.
+  # ───────────────────────────────────────────────────────
+  ApiGatewayCloudMapRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppName}-${EnvName}-apigw-cloudmap-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudMapDiscoveryPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - servicediscovery:DiscoverInstances
+                Resource: "*"
+
+  # ───────────────────────────────────────────────────────
   # HTTP API (API Gateway v2)
   #
   # HTTP API is cheaper and faster than REST API.
@@ -744,10 +772,8 @@ Resources:
       IntegrationMethod: ANY
       ConnectionType: VPC_LINK
       ConnectionId: !Ref SplitwiseVpcLink
+      CredentialsArn: !GetAtt ApiGatewayCloudMapRole.Arn
       IntegrationUri: !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-compute/cloudmap-service-arn}}"
-      PayloadFormatVersion: "1.0"
-      RequestParameters:
-        append:header.port: "'8080'"
 
   SplitwiseGetRoute:
     Type: AWS::ApiGatewayV2::Route
