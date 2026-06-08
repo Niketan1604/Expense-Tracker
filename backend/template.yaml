@@ -143,6 +143,12 @@ Resources:
                   - servicediscovery:DiscoverInstances
                 Resource: "*"
 
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/apigateway/${AppName}-${EnvName}-api"
+      RetentionInDays: !If [IsProd, 30, 7]
+
   # ───────────────────────────────────────────────────────
   # HTTP API (API Gateway v2)
   #
@@ -189,6 +195,10 @@ Resources:
           - Content-Type
         AllowCredentials: false
         MaxAge: 300
+
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: '{"requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","routeKey":"$context.routeKey", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength", "integrationError":"$context.integrationErrorMessage"}'
 
   # ───────────────────────────────────────────────────────
   # FOUNDATION APIs
