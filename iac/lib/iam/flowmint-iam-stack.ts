@@ -132,7 +132,8 @@ export class FlowmintIamStack extends Stack {
             `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/${appName}-${envName}-*`,
             `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/${appName}-${envName}-*:*`,
             `arn:aws:logs:${this.region}:${this.account}:log-group:API-Gateway-Execution-Logs_*`,
-            `arn:aws:logs:${this.region}:${this.account}:log-group:API-Gateway-Execution-Logs_*:*`
+            `arn:aws:logs:${this.region}:${this.account}:log-group:API-Gateway-Execution-Logs_*:*`,
+            `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/apigateway/*`
           ]
         }),
 
@@ -668,7 +669,8 @@ export class FlowmintIamStack extends Stack {
         `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/${appName}-${envName}-*`,
         `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/${appName}-${envName}-*:*`,
         `arn:aws:logs:${this.region}:${this.account}:log-group:API-Gateway-Execution-Logs_*`,
-        `arn:aws:logs:${this.region}:${this.account}:log-group:API-Gateway-Execution-Logs_*:*`
+        `arn:aws:logs:${this.region}:${this.account}:log-group:API-Gateway-Execution-Logs_*:*`,
+        `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/apigateway/*`
       ]
     }));
 
