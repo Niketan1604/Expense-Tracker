@@ -749,11 +749,32 @@ Resources:
       RequestParameters:
         append:header.port: "'8080'"
 
-  SplitwiseRoute:
+  SplitwiseGetRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "ANY /api/{proxy+}"
+      RouteKey: "GET /api/{proxy+}"
+      Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
+
+  SplitwisePostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /api/{proxy+}"
+      Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
+
+  SplitwisePutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "PUT /api/{proxy+}"
+      Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
+
+  SplitwiseDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "DELETE /api/{proxy+}"
       Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
 
 
