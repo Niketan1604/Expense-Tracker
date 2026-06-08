@@ -756,16 +756,6 @@ Resources:
       RouteKey: "ANY /api/{proxy+}"
       Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
 
-  # OPTIONS preflight for Splitwise routes must bypass the JWT authorizer.
-  # Browsers send OPTIONS with no Authorization header — the authorizer would
-  # reject it before API Gateway can return CORS headers, causing a CORS error.
-  SplitwiseOptionsRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref HttpApi
-      RouteKey: "OPTIONS /api/{proxy+}"
-      AuthorizationType: NONE
-      Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
 
   # ───────────────────────────────────────────────────────
   # SSM Export — API Endpoint
