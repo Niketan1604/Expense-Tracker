@@ -104,11 +104,7 @@ export class SplitwiseTaskStack extends Stack {
       serviceName: `${appName}-${envName}-splitwise`,
       cluster,
       taskDefinition,
-      // desiredCount: 0 — no tasks run at infrastructure deploy time.
-      // The ECR repo is empty at this point (no image pushed yet).
-      // A separate build pipeline pushes the Spring Boot image and then
-      // updates the service to desiredCount: 1 via `aws ecs update-service`.
-      desiredCount: 0,
+      desiredCount: 1,
 
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       assignPublicIp: true,
