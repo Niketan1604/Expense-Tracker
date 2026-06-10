@@ -129,7 +129,7 @@ export class SplitwiseTaskStack extends Stack {
       maxHealthyPercent: 100,
 
       cloudMapOptions: {
-        name: 'backend',
+        name: 'api',
         dnsRecordType: cloudmap.DnsRecordType.SRV,
         containerPort: 8080
       }
