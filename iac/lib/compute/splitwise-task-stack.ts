@@ -6,6 +6,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as cloudmap from 'aws-cdk-lib/aws-servicediscovery';
 import { exportParam } from '../utils/parameter-utils';
 
 interface SplitwiseTaskStackProps extends StackProps {
@@ -128,7 +129,9 @@ export class SplitwiseTaskStack extends Stack {
       maxHealthyPercent: 100,
 
       cloudMapOptions: {
-        name: 'backend'
+        name: 'backend',
+        dnsRecordType: cloudmap.DnsRecordType.SRV,
+        containerPort: 8080
       }
     });
 
