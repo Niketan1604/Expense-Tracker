@@ -777,7 +777,7 @@ Resources:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref HttpApi
-      Description: Private route to Splitwise Spring Boot ECS service via Cloud Map
+      Description: Private route to Splitwise Spring Boot ECS Task service via Cloud Map
       IntegrationType: HTTP_PROXY
       IntegrationMethod: ANY
       ConnectionType: VPC_LINK
@@ -812,7 +812,6 @@ Resources:
       ApiId: !Ref HttpApi
       RouteKey: "DELETE /api/{proxy+}"
       Target: !Join ["/", ["integrations", !Ref SplitwiseIntegration]]
-
 
   # ───────────────────────────────────────────────────────
   # SSM Export — API Endpoint
