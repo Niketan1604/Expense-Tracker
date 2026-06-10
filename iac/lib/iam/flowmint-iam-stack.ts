@@ -137,6 +137,13 @@ export class FlowmintIamStack extends Stack {
           ]
         }),
 
+        // DescribeLogGroups does not support resource-level permissions
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['logs:DescribeLogGroups'],
+          resources: ['*']
+        }),
+
         // SSM — app parameters only
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
@@ -662,7 +669,6 @@ export class FlowmintIamStack extends Stack {
         'logs:DeleteRetentionPolicy',
         'logs:TagLogGroup',
         'logs:UntagLogGroup',
-        'logs:DescribeLogGroups',
         'logs:ListTagsLogGroup'
       ],
       resources: [
@@ -672,6 +678,13 @@ export class FlowmintIamStack extends Stack {
         `arn:aws:logs:${this.region}:${this.account}:log-group:API-Gateway-Execution-Logs_*:*`,
         `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/apigateway/*`
       ]
+    }));
+
+    // DescribeLogGroups does not support resource-level permissions
+    cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['logs:DescribeLogGroups'],
+      resources: ['*']
     }));
 
     // SSM — app params only
