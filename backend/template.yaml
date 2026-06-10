@@ -784,8 +784,6 @@ Resources:
       ConnectionId: !Ref SplitwiseVpcLink
       CredentialsArn: !GetAtt ApiGatewayCloudMapRole.Arn
       IntegrationUri: !Sub "{{resolve:ssm:/flowmint/${EnvName}/splitwise-compute/cloudmap-service-arn}}"
-      RequestParameters:
-        "overwrite:port": "8080"
 
   SplitwiseGetRoute:
     Type: AWS::ApiGatewayV2::Route
