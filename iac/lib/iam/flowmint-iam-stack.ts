@@ -137,10 +137,19 @@ export class FlowmintIamStack extends Stack {
           ]
         }),
 
-        // DescribeLogGroups does not support resource-level permissions
+        // DescribeLogGroups and LogDelivery actions do not support resource-level permissions
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
-          actions: ['logs:DescribeLogGroups'],
+          actions: [
+            'logs:DescribeLogGroups',
+            'logs:CreateLogDelivery',
+            'logs:GetLogDelivery',
+            'logs:UpdateLogDelivery',
+            'logs:DeleteLogDelivery',
+            'logs:ListLogDeliveries',
+            'logs:PutResourcePolicy',
+            'logs:DescribeResourcePolicies'
+          ],
           resources: ['*']
         }),
 
@@ -680,10 +689,19 @@ export class FlowmintIamStack extends Stack {
       ]
     }));
 
-    // DescribeLogGroups does not support resource-level permissions
+    // DescribeLogGroups and LogDelivery actions do not support resource-level permissions
     cfnExecutionRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ['logs:DescribeLogGroups'],
+      actions: [
+        'logs:DescribeLogGroups',
+        'logs:CreateLogDelivery',
+        'logs:GetLogDelivery',
+        'logs:UpdateLogDelivery',
+        'logs:DeleteLogDelivery',
+        'logs:ListLogDeliveries',
+        'logs:PutResourcePolicy',
+        'logs:DescribeResourcePolicies'
+      ],
       resources: ['*']
     }));
 
