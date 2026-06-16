@@ -1,7 +1,8 @@
 'use client'
 import { useState, Suspense, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { ChevronLeft, Plus, Receipt, ReceiptIndianRupee, Settings, LogOut, Trash2, Edit2, Minus } from 'lucide-react'
+import { ChevronLeft, Plus, Receipt, ReceiptIndianRupee, Settings, LogOut, Trash2, Edit2, Minus, ArrowRightLeft, User, TrendingUp, PieChart as PieChartIcon, CheckCircle2, X } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useSplitwiseGroup, useSplitwiseExpenses, useProfile } from '@/hooks/useApi'
 import { splitwiseApi } from '@/lib/api'
 import { formatAmount, formatDate } from '@/lib/format'
@@ -245,7 +246,21 @@ function ExpenseModal({ expenseToEdit, currentUserId, groupId, members, onClose,
   const [paidByUserId, setPaidByUserId] = useState(expenseToEdit?.paidByUserId || currentUserId || members[0]?.userId || '')
   const [splitMode, setSplitMode] = useState<'EQUAL' | 'UNEQUAL'>(expenseToEdit?.splitType === 'EQUAL' || !expenseToEdit ? 'EQUAL' : 'UNEQUAL')
   const [splitType, setSplitType] = useState<SplitType>(expenseToEdit?.splitType === 'EQUAL' ? 'EXACT' : expenseToEdit?.splitType || 'EXACT')
+  const [category, setCategory] = useState(expenseToEdit?.category || 'Other')
   const toast = useToast()
+
+  const DEFAULT_CATEGORIES = [
+    'Food & Dining',
+    'Transport',
+    'Accommodation',
+    'Activities & Sightseeing',
+    'Shopping',
+    'Rentals',
+    'Entertainment',
+    'Health & Pharmacy',
+    'Fuel',
+    'Other'
+  ]
   
   // Equal split checkbox state
   const [equalSelected, setEqualSelected] = useState<Set<string>>(() => {
@@ -425,6 +440,7 @@ function ExpenseModal({ expenseToEdit, currentUserId, groupId, members, onClose,
         currency: 'INR',
         splitType: finalSplitType,
         paidByUserId,
+        category,
         splits: finalSplits
       }
 
@@ -474,6 +490,15 @@ function ExpenseModal({ expenseToEdit, currentUserId, groupId, members, onClose,
                 {members.map(m => <option key={m.userId} value={m.userId}>{m.name} {m.userId === currentUserId && '(You)'}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>Category</label>
+            <select value={category} onChange={e => setCategory(e.target.value)} className="fm-input rounded-xl bg-surface">
+              {DEFAULT_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -687,25 +712,213 @@ function ExpenseModal({ expenseToEdit, currentUserId, groupId, members, onClose,
   )
 }
 
+interface Debt {
+  from: string;
+  fromName: string;
+  to: string;
+  toName: string;
+  amount: number;
+}
+
+function calculateSettlements(members: { userId: string, name: string, netBalance: number }[]): Debt[] {
+  const balances = members.map(m => ({ id: m.userId, name: m.name, balance: m.netBalance })).filter(m => Math.abs(m.balance) > 0.01);
+  balances.sort((a, b) => a.balance - b.balance);
+  
+  let i = 0;
+  let j = balances.length - 1;
+  const debts: Debt[] = [];
+  
+  while (i < j) {
+    const debtor = balances[i];
+    const creditor = balances[j];
+    
+    const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
+    
+    if (amount > 0.01) {
+      debts.push({
+        from: debtor.id,
+        fromName: debtor.name,
+        to: creditor.id,
+        toName: creditor.name,
+        amount: Number(amount.toFixed(2))
+      });
+    }
+    
+    debtor.balance += amount;
+    creditor.balance -= amount;
+    
+    if (Math.abs(debtor.balance) < 0.01) i++;
+    if (Math.abs(creditor.balance) < 0.01) j--;
+  }
+  return debts;
+}
+
+function TransferModal({ currentUserId, groupId, members, prefilledDebt, onClose, onSave }: {
+  currentUserId?: string;
+  groupId: string;
+  members: { userId: string, name: string }[];
+  prefilledDebt?: { from: string, to: string, amount: number };
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const [amount, setAmount] = useState(prefilledDebt ? prefilledDebt.amount.toString() : '');
+  const [paidByUserId, setPaidByUserId] = useState(prefilledDebt ? prefilledDebt.from : currentUserId || members[0]?.userId || '');
+  const [receivedByUserId, setReceivedByUserId] = useState(prefilledDebt ? prefilledDebt.to : members.find(m => m.userId !== currentUserId)?.userId || members[0]?.userId || '');
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (paidByUserId === receivedByUserId) {
+      toast.error("Sender and receiver cannot be the same person");
+      return;
+    }
+    setLoading(true);
+    try {
+      const totalAmount = parseFloat(amount);
+      if (isNaN(totalAmount) || totalAmount <= 0) throw new Error("Invalid amount");
+
+      const payload = {
+        groupId,
+        description: 'Payment',
+        totalAmount,
+        currency: 'INR',
+        splitType: 'EXACT' as SplitType,
+        paidByUserId,
+        isTransfer: true,
+        splits: [
+          { userId: receivedByUserId, value: totalAmount }
+        ]
+      };
+
+      await splitwiseApi.createExpense(payload);
+      toast.success('Transfer recorded');
+      onSave();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record transfer');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay z-50">
+      <div className="modal-box max-w-sm">
+        <h2 className="modal-title flex items-center gap-2"><ArrowRightLeft className="w-5 h-5 text-mint"/> Record Payment</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>Who Paid?</label>
+            <select value={paidByUserId} onChange={e => setPaidByUserId(e.target.value)} disabled={!!prefilledDebt} required className="fm-input rounded-xl bg-surface">
+              {members.map(m => <option key={m.userId} value={m.userId}>{m.name} {m.userId === currentUserId && '(You)'}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>Who Received?</label>
+            <select value={receivedByUserId} onChange={e => setReceivedByUserId(e.target.value)} disabled={!!prefilledDebt} required className="fm-input rounded-xl bg-surface">
+              {members.map(m => <option key={m.userId} value={m.userId}>{m.name} {m.userId === currentUserId && '(You)'}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>Amount</label>
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              required min="0.01" step="0.01" placeholder="0.00" className="fm-input rounded-xl" />
+          </div>
+          <div className="flex gap-2 pt-4">
+            <button type="button" onClick={onClose} className="btn btn-ghost flex-1 py-2.5 rounded-xl">Cancel</button>
+            <button type="submit" disabled={loading} className="btn btn-primary flex-1 py-2.5 rounded-xl">
+              {loading ? 'Saving...' : 'Save Payment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function MemberModal({ member, expenses, onClose, currentUserId }: { member: any, expenses: SplitwiseExpense[], onClose: () => void, currentUserId?: string }) {
+  const memberExpenses = expenses.filter(e => !e.isTransfer && e.shares.some(s => s.userId === member.userId));
+  const totalSpent = memberExpenses.reduce((sum, e) => {
+    const share = e.shares.find(s => s.userId === member.userId);
+    return sum + (share ? share.owedAmount : 0);
+  }, 0);
+
+  return (
+    <div className="modal-overlay z-50">
+      <div className="modal-box" style={{ maxWidth: '36rem', width: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="flex items-center justify-between mb-4 shrink-0">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center font-bold text-text">
+                {member.name.charAt(0).toUpperCase()}
+             </div>
+             <div>
+                <h2 className="text-lg font-bold leading-none">{member.name}</h2>
+                <p className="text-xs text-muted mt-1">Total Spent: <span className="font-mono text-mint font-bold">{formatAmount(totalSpent * 100)}</span></p>
+             </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ color: '#ef4444', background: 'rgba(239,68,68,0.08)', border: '1.5px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.18)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        
+        <div style={{ flex: 1, overflowY: 'auto' }} className="space-y-2 pr-1">
+          {memberExpenses.length === 0 ? (
+            <p className="text-center text-muted py-8 text-sm">No expenses found for this member.</p>
+          ) : (
+            memberExpenses.map(exp => {
+              const share = exp.shares.find(s => s.userId === member.userId);
+              return (
+                <div key={exp.id} className="p-3 bg-surface-2 rounded-xl border border-border">
+                   <div className="flex items-start justify-between gap-2">
+                     <div className="flex-1 min-w-0">
+                       <p className="font-bold text-sm text-text truncate">{exp.description}</p>
+                       <p className="text-[10px] text-muted mt-0.5">{formatDate(exp.createdAt.split('T')[0])} • Total: {formatAmount(exp.totalAmount * 100)}</p>
+                       {exp.category && exp.category !== 'Other' && (
+                         <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-surface border border-border text-muted">{exp.category}</span>
+                       )}
+                     </div>
+                     <div className="text-right shrink-0">
+                       <p className="text-[10px] uppercase tracking-widest text-muted font-bold mb-0.5">Share</p>
+                       <p className="font-mono text-sm font-bold text-text">{formatAmount((share?.owedAmount || 0) * 100)}</p>
+                     </div>
+                   </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GroupDetailsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const groupId = searchParams.get('id') || ''
 
   const { data: group, loading: loadingGroup, refetch: refetchGroup } = useSplitwiseGroup(groupId)
-  const { data: expenses, loading: loadingExpenses, refetch: refetchExpenses } = useSplitwiseExpenses(groupId)
+  const { data: allExpenses, loading: loadingExpenses, refetch: refetchExpenses } = useSplitwiseExpenses(groupId)
   const { data: profile } = useProfile()
   
   const [modalOpen, setModalOpen] = useState(false)
   const [expenseToEdit, setExpenseToEdit] = useState<SplitwiseExpense | undefined>()
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const [tab, setTab] = useState<'BALANCES' | 'EXPENSES'>('BALANCES')
+  const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [prefilledDebt, setPrefilledDebt] = useState<{from: string, to: string, amount: number} | undefined>()
+  const [memberModal, setMemberModal] = useState<any | null>(null)
+  
+  const [tab, setTab] = useState<'OVERVIEW' | 'MEMBERS' | 'EXPENSES' | 'TRANSFERS' | 'SUMMARY'>('OVERVIEW')
   const [isLeaving, setIsLeaving] = useState(false)
   const [confirmConfig, setConfirmConfig] = useState<{isOpen: boolean, title?: string, message: string, onConfirm: () => void} | null>(null);
   const toast = useToast()
 
-  // Critical fix: profile?.userId is a Cognito ID, but group members use Postgres UUIDs.
-  // We match by email to find the current user's Postgres ID.
   const myPostgresId = profile?.email 
     ? group?.members.find(m => m.email?.toLowerCase() === profile.email.toLowerCase())?.userId 
     : undefined
@@ -773,16 +986,42 @@ function GroupDetailsContent() {
   }
 
   const isAdmin = profile?.userId === group.adminId
+  const expenses = allExpenses?.filter(e => !e.isTransfer) || []
+  const transfers = allExpenses?.filter(e => e.isTransfer) || []
+
+  const COLORS = ['#4ecdc4', '#ff6b6b', '#feca57', '#54a0ff', '#1dd1a1', '#ff9ff3', '#00d2d3', '#a29bfe', '#fd79a8', '#6c5ce7'];
+
+  // Bar chart: daily spending
+  const dailySpending = [...expenses].reverse().reduce((acc: any[], exp) => {
+    const date = exp.createdAt.split('T')[0];
+    const existing = acc.find(a => a.date === date);
+    if (existing) { existing.amount += exp.totalAmount; }
+    else { acc.push({ date, amount: Number(exp.totalAmount) }); }
+    return acc;
+  }, []);
+
+  // Pie chart: spending by category
+  const spendingByCategory = expenses.reduce((acc: Record<string, number>, exp) => {
+    const cat = exp.category || 'Other';
+    acc[cat] = (acc[cat] || 0) + Number(exp.totalAmount);
+    return acc;
+  }, {});
+  const categoryPieData = Object.entries(spendingByCategory)
+    .map(([name, value], idx) => ({ name, value, color: COLORS[idx % COLORS.length] }))
+    .filter(d => d.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  const totalGroupSpent = categoryPieData.reduce((sum, item) => sum + item.value, 0);
+  const debts = calculateSettlements(group.members);
 
   return (
     <>
-      <div className="page animate-fadeUp">
+      <div className="page animate-fadeUp max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <button onClick={() => router.push('/splitwise')} className="text-sm font-semibold text-muted hover:text-text flex items-center gap-1 transition-colors">
             <ChevronLeft className="w-4 h-4" /> Back to Groups
           </button>
-          
           <div className="flex items-center gap-2">
             {isAdmin && (
               <button onClick={() => setEditModalOpen(true)} className="btn btn-ghost py-2 rounded-xl text-sm gap-1">
@@ -796,7 +1035,7 @@ function GroupDetailsContent() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="page-title flex items-center gap-2">
               {group.name} 
@@ -804,61 +1043,127 @@ function GroupDetailsContent() {
             </h1>
             {group.description && <p className="page-subtitle mt-1">{group.description}</p>}
           </div>
-          <button onClick={() => { setExpenseToEdit(undefined); setModalOpen(true); }} className="btn btn-primary rounded-xl self-start sm:self-auto shrink-0">
-            <Plus className="w-4 h-4" /> Add Expense
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setPrefilledDebt(undefined); setTransferModalOpen(true); }} className="btn bg-surface text-text hover:bg-surface-2 rounded-xl self-start sm:self-auto shrink-0 border border-border">
+              <ArrowRightLeft className="w-4 h-4" /> Record Transfer
+            </button>
+            <button onClick={() => { setExpenseToEdit(undefined); setModalOpen(true); }} className="btn btn-primary rounded-xl self-start sm:self-auto shrink-0">
+              <Plus className="w-4 h-4" /> Add Expense
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 p-1 bg-surface-2 rounded-xl w-fit">
-          <button onClick={() => setTab('BALANCES')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'BALANCES' ? 'bg-surface text-text shadow-sm' : 'text-muted hover:text-text'}`}>
-            Balances
-          </button>
-          <button onClick={() => setTab('EXPENSES')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${tab === 'EXPENSES' ? 'bg-surface text-text shadow-sm' : 'text-muted hover:text-text'}`}>
-            Expenses
-          </button>
+        <div className="flex flex-wrap gap-1 mb-6 p-1 bg-surface-2 rounded-xl w-fit border border-border">
+          {(['OVERVIEW', 'MEMBERS', 'EXPENSES', 'TRANSFERS', 'SUMMARY'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${tab === t ? 'bg-surface text-text shadow-sm border border-border/50' : 'text-muted hover:text-text'}`}>
+              {t}
+            </button>
+          ))}
         </div>
 
         {/* Tab Content */}
-        {tab === 'BALANCES' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {group.members.map(member => (
-              <div key={member.userId} className="card p-5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center font-bold text-text shrink-0">
-                    {member.name.charAt(0).toUpperCase()}
+        {tab === 'OVERVIEW' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeUp">
+            <div className="card p-5">
+               <h3 className="text-sm font-bold uppercase tracking-widest text-muted mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4"/> Daily Spending</h3>
+               <div className="h-64 w-full">
+                 {dailySpending.length > 0 ? (
+                   <ResponsiveContainer width="100%" height="100%">
+                     <BarChart data={dailySpending} barSize={28}>
+                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                       <XAxis dataKey="date" stroke="var(--muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => {
+                         const d = new Date(val);
+                         return `${d.getDate()}/${d.getMonth()+1}`;
+                       }} />
+                       <YAxis stroke="var(--muted)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val}`} />
+                       <Tooltip
+                         contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '12px' }}
+                         labelFormatter={(val) => formatDate(val)}
+                         formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Spent']}
+                       />
+                       <Bar dataKey="amount" fill="var(--mint)" radius={[6, 6, 0, 0]} />
+                     </BarChart>
+                   </ResponsiveContainer>
+                 ) : (
+                   <div className="h-full flex flex-col items-center justify-center gap-2 text-muted">
+                     <TrendingUp className="w-8 h-8 opacity-30" />
+                     <p className="text-sm font-medium">No expenses recorded yet</p>
+                   </div>
+                 )}
+               </div>
+            </div>
+            
+            <div className="card p-5">
+               <h3 className="text-sm font-bold uppercase tracking-widest text-muted mb-4 flex items-center gap-2"><PieChartIcon className="w-4 h-4"/> Spending by Category</h3>
+               <div className="h-64 w-full relative">
+                 {categoryPieData.length > 0 ? (
+                   <>
+                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ top: 0, bottom: 60 }}>
+                        <span className="text-xs uppercase tracking-widest text-muted font-bold">Total</span>
+                        <span className="text-xl font-mono font-bold text-text">{formatAmount(totalGroupSpent * 100)}</span>
+                     </div>
+                     <ResponsiveContainer width="100%" height="100%">
+                       <PieChart>
+                         <Pie data={categoryPieData} cx="50%" cy="45%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
+                           {categoryPieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                         </Pie>
+                         <Tooltip formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Spent']} contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '12px' }} />
+                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                       </PieChart>
+                     </ResponsiveContainer>
+                   </>
+                 ) : (
+                   <div className="h-full flex flex-col items-center justify-center gap-2 text-muted">
+                     <PieChartIcon className="w-8 h-8 opacity-30" />
+                     <p className="text-sm font-medium">No expenses recorded yet</p>
+                   </div>
+                 )}
+               </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'MEMBERS' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fadeUp">
+            {group.members.map(member => {
+              const spent = expenses.reduce((sum, e) => {
+                const share = e.shares.find(s => s.userId === member.userId);
+                return sum + (share ? share.owedAmount : 0);
+              }, 0);
+              return (
+                <button key={member.userId} onClick={() => setMemberModal(member)} className="card p-5 flex items-center justify-between text-left hover:bg-surface-2 transition-colors border border-transparent hover:border-mint/30 group">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-12 h-12 rounded-2xl bg-surface-2 group-hover:bg-mint/10 group-hover:text-mint transition-colors flex items-center justify-center font-bold text-text shrink-0 text-lg">
+                      {member.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="font-bold text-text truncate">
+                        {member.name} {member.userId === profile?.userId && '(You)'}
+                      </p>
+                      {member.email && <p className="text-xs text-muted truncate">{member.email}</p>}
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-text">
-                      {member.name} {member.userId === profile?.userId && '(You)'}
-                      {member.userId === group.adminId && <span className="ml-2 text-[10px] uppercase tracking-widest text-mint">Admin</span>}
+                  <div className="text-right shrink-0 pl-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-0.5">Total Spent</p>
+                    <p className="font-bold font-mono text-mint text-lg">
+                      {formatAmount(spent * 100)}
                     </p>
-                    {member.email && <p className="text-xs text-muted truncate max-w-[180px]">{member.email}</p>}
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs font-bold uppercase tracking-widest text-muted mb-0.5">Net Balance</p>
-                  <p className={`font-bold font-mono ${member.netBalance > 0 ? 'text-mint' : member.netBalance < 0 ? 'text-red' : 'text-muted'}`}>
-                    {member.netBalance > 0 ? '+' : member.netBalance < 0 ? '−' : ''}
-                    {formatAmount(Math.abs(member.netBalance) * 100)}
-                  </p>
-                </div>
-              </div>
-            ))}
+                </button>
+              )
+            })}
           </div>
         )}
 
         {tab === 'EXPENSES' && (
-          <div className="card overflow-hidden">
+          <div className="card overflow-hidden animate-fadeUp">
             {loadingExpenses ? (
               <div className="p-4"><div className="skeleton h-16 rounded-xl" /></div>
-            ) : !expenses?.length ? (
+            ) : !expenses.length ? (
               <div className="empty-state py-12">
-                <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mb-4 text-muted">
-                  <Receipt className="w-6 h-6" />
-                </div>
-                <p>No expenses in this group yet.</p>
-                <button onClick={() => { setExpenseToEdit(undefined); setModalOpen(true); }} className="text-mint font-semibold text-sm mt-2">Add the first expense</button>
+                <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mb-4 text-muted"><Receipt className="w-6 h-6" /></div>
+                <p>No regular expenses in this group yet.</p>
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -870,35 +1175,14 @@ function GroupDetailsContent() {
                       </div>
                       <div>
                         <p className="font-bold text-text leading-tight">{exp.description}</p>
-                        <p className="text-xs text-muted mt-1">
-                          {formatDate(exp.createdAt.split('T')[0])} • Paid by {exp.paidByUserName === profile?.name ? 'You' : exp.paidByUserName}
-                        </p>
-                        {exp.updatedAt && (
-                          <p className="text-[10px] text-muted/60 mt-0.5">
-                            Last modified by {exp.updatedByUserName} on {formatDate(exp.updatedAt.split('T')[0])}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted mt-1">{formatDate(exp.createdAt.split('T')[0])} • Paid by {exp.paidByUserName === profile?.name ? 'You' : exp.paidByUserName}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0 flex items-center gap-4">
-                      <p className="font-bold font-mono text-text">
-                        {formatAmount(exp.totalAmount * 100)}
-                      </p>
+                      <p className="font-bold font-mono text-text">{formatAmount(exp.totalAmount * 100)}</p>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => { setExpenseToEdit(exp); setModalOpen(true); }}
-                          className="p-2 text-muted hover:text-mint hover:bg-mint/10 rounded-lg transition-colors"
-                          title="Edit Expense"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteExpense(exp.id)}
-                          className="p-2 text-muted hover:text-red hover:bg-red/10 rounded-lg transition-colors"
-                          title="Delete Expense"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <button onClick={() => { setExpenseToEdit(exp); setModalOpen(true); }} className="p-2 text-muted hover:text-mint rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleDeleteExpense(exp.id)} className="p-2 text-muted hover:text-red rounded-lg"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
                   </div>
@@ -907,38 +1191,112 @@ function GroupDetailsContent() {
             )}
           </div>
         )}
+
+        {tab === 'TRANSFERS' && (
+          <div className="card overflow-hidden animate-fadeUp">
+            {loadingExpenses ? (
+              <div className="p-4"><div className="skeleton h-16 rounded-xl" /></div>
+            ) : !transfers.length ? (
+              <div className="empty-state py-12">
+                <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mb-4 text-muted"><ArrowRightLeft className="w-6 h-6" /></div>
+                <p>No transfers recorded yet.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {transfers.map(exp => (
+                  <div key={exp.id} className="p-4 flex items-center justify-between hover:bg-surface-2 transition-colors group">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-mint/10 text-mint flex items-center justify-center shrink-0 border border-mint/20">
+                        <ArrowRightLeft className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-text leading-tight">{exp.paidByUserName} paid {exp.shares[0]?.userName}</p>
+                        <p className="text-xs text-muted mt-1">{formatDate(exp.createdAt.split('T')[0])}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 flex items-center gap-4">
+                      <p className="font-bold font-mono text-mint">{formatAmount(exp.totalAmount * 100)}</p>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleDeleteExpense(exp.id)} className="p-2 text-muted hover:text-red rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'SUMMARY' && (
+          <div className="card overflow-hidden animate-fadeUp p-6">
+             <div className="mb-6 flex items-center justify-between">
+                <div>
+                   <h2 className="text-lg font-bold text-text flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-mint"/> Debt Simplification</h2>
+                   <p className="text-sm text-muted mt-1">Here is exactly who owes whom to settle all balances.</p>
+                </div>
+             </div>
+
+             {debts.length === 0 ? (
+               <div className="text-center py-12 bg-surface-2 rounded-2xl border border-dashed border-border">
+                  <p className="text-mint font-bold text-lg mb-1">All Settled Up! 🎉</p>
+                  <p className="text-muted text-sm">No one owes anything in this group.</p>
+               </div>
+             ) : (
+               <div className="space-y-3">
+                 {debts.map((debt, idx) => {
+                   const isReceiver = myPostgresId === debt.to;
+                   return (
+                     <div key={idx} className="bg-surface-2 p-4 rounded-xl border border-border flex flex-col gap-3">
+                       {/* Clear sentence: who owes whom */}
+                       <div className="flex items-start justify-between gap-3">
+                         <div className="flex-1">
+                           <p className="font-bold text-text text-sm leading-snug">
+                             <span className="text-red-400">{debt.fromName}</span>
+                             <span className="text-muted mx-2">needs to pay</span>
+                             <span className="text-mint">{debt.toName}</span>
+                           </p>
+                         </div>
+                         <span className="font-mono font-bold text-lg text-mint shrink-0">{formatAmount(debt.amount * 100)}</span>
+                       </div>
+
+                       <button 
+                         disabled={!isReceiver}
+                         onClick={() => {
+                           setPrefilledDebt(debt);
+                           setTransferModalOpen(true);
+                         }}
+                         className={`btn w-full rounded-lg py-2 text-sm font-bold ${
+                           isReceiver
+                             ? 'btn-primary'
+                             : 'bg-surface text-muted cursor-not-allowed border border-border'
+                         }`}
+                         title={!isReceiver ? 'Only the receiver can record the payment' : 'Record that you received this payment'}
+                       >
+                         {isReceiver ? '✓ Settle Up (Mark as Received)' : 'Waiting for receiver to confirm'}
+                       </button>
+                     </div>
+                   )
+                 })}
+               </div>
+             )}
+          </div>
+        )}
       </div>
 
       {modalOpen && (
-        <ExpenseModal 
-          expenseToEdit={expenseToEdit}
-          currentUserId={myPostgresId}
-          groupId={groupId} 
-          members={group.members} 
-          onClose={() => { setModalOpen(false); setExpenseToEdit(undefined); }} 
-          onSave={refreshData} 
-        />
+        <ExpenseModal expenseToEdit={expenseToEdit} currentUserId={myPostgresId} groupId={groupId} members={group.members} onClose={() => { setModalOpen(false); setExpenseToEdit(undefined); }} onSave={refreshData} />
       )}
-
       {editModalOpen && (
-        <EditGroupModal 
-          group={group}
-          currentUserId={myPostgresId}
-          onClose={() => setEditModalOpen(false)} 
-          onSave={refreshData} 
-        />
+        <EditGroupModal group={group} currentUserId={myPostgresId} onClose={() => setEditModalOpen(false)} onSave={refreshData} />
       )}
-
+      {transferModalOpen && (
+        <TransferModal currentUserId={myPostgresId} groupId={groupId} members={group.members} prefilledDebt={prefilledDebt} onClose={() => { setTransferModalOpen(false); setPrefilledDebt(undefined); }} onSave={refreshData} />
+      )}
+      {memberModal && (
+        <MemberModal member={memberModal} expenses={allExpenses || []} onClose={() => setMemberModal(null)} currentUserId={myPostgresId} />
+      )}
       {confirmConfig && (
-        <ConfirmModal
-          isOpen={confirmConfig.isOpen}
-          title={confirmConfig.title}
-          message={confirmConfig.message}
-          onConfirm={confirmConfig.onConfirm}
-          onCancel={() => setConfirmConfig(null)}
-          confirmText="Yes, Proceed"
-          cancelText="Cancel"
-        />
+        <ConfirmModal isOpen={confirmConfig.isOpen} title={confirmConfig.title} message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={() => setConfirmConfig(null)} confirmText="Yes, Proceed" cancelText="Cancel" />
       )}
     </>
   )

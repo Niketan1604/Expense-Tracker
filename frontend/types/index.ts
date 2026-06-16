@@ -176,6 +176,8 @@ export interface SplitwiseExpense {
   totalAmount: number;
   currency: string;
   splitType: SplitType;
+  isTransfer?: boolean;
+  category?: string;
   createdAt: string;
   updatedAt?: string;
   updatedByUserName?: string;
@@ -207,6 +209,8 @@ export interface CreateSplitwiseExpenseBody {
   totalAmount: number;
   currency: string;
   splitType: SplitType;
+  isTransfer?: boolean;
+  category?: string;
   paidByUserId: string;
   flowmintExpenseId?: string;
   splits: UserSplit[];
