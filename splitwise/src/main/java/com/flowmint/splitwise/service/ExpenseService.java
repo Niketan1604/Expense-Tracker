@@ -50,6 +50,8 @@ public class ExpenseService {
         expense.setGroup(group);
         expense.setPaidBy(paidBy);
         expense.setFlowmintExpenseId(request.getFlowmintExpenseId());
+        expense.setIsTransfer(request.getIsTransfer() != null ? request.getIsTransfer() : false);
+        expense.setCategory(request.getCategory() != null ? request.getCategory() : "Other");
 
         // 3. Process the splits based on the SplitType
         int numUsers = request.getSplits().size();
@@ -143,6 +145,8 @@ public class ExpenseService {
                 .createdAt(saved.getCreatedAt())
                 .paidByUserId(saved.getPaidBy().getId())
                 .paidByUserName(saved.getPaidBy().getName())
+                .isTransfer(saved.getIsTransfer())
+                .category(saved.getCategory())
                 .shares(saved.getShares().stream()
                         .map(share -> ExpenseResponse.ExpenseShareDto.builder()
                                 .userId(share.getUser().getId())
@@ -173,6 +177,8 @@ public class ExpenseService {
         expense.setGroup(group);
         expense.setPaidBy(paidBy);
         expense.setFlowmintExpenseId(request.getFlowmintExpenseId());
+        expense.setIsTransfer(request.getIsTransfer() != null ? request.getIsTransfer() : false);
+        expense.setCategory(request.getCategory() != null ? request.getCategory() : "Other");
 
         expense.getShares().clear();
 
@@ -248,6 +254,8 @@ public class ExpenseService {
                 .createdAt(saved.getCreatedAt())
                 .paidByUserId(saved.getPaidBy().getId())
                 .paidByUserName(saved.getPaidBy().getName())
+                .isTransfer(saved.getIsTransfer())
+                .category(saved.getCategory())
                 .shares(saved.getShares().stream()
                         .map(share -> ExpenseResponse.ExpenseShareDto.builder()
                                 .userId(share.getUser().getId())
@@ -280,6 +288,8 @@ public class ExpenseService {
                                 exp.getUpdatedBy() != null ? exp.getUpdatedBy().getName() : null)
                         .paidByUserId(exp.getPaidBy().getId())
                         .paidByUserName(exp.getPaidBy().getName())
+                        .isTransfer(exp.getIsTransfer())
+                        .category(exp.getCategory())
                         .shares(exp.getShares().stream()
                                 .map(share -> ExpenseResponse.ExpenseShareDto.builder()
                                         .userId(share.getUser().getId())

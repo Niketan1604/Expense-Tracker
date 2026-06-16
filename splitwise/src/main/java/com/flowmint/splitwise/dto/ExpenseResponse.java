@@ -21,6 +21,8 @@ public class ExpenseResponse {
     private String paidByUserName;
     private LocalDateTime updatedAt;
     private String updatedByUserName;
+    private Boolean isTransfer;
+    private String category;
     private List<ExpenseShareDto> shares;
 
     @Data

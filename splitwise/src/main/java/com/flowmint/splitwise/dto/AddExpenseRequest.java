@@ -34,6 +34,11 @@ public class AddExpenseRequest {
 
     private String flowmintExpenseId; // Optional link to main app
 
+    private Boolean isTransfer;
+
+    @NotBlank(message = "Category is required")
+    private String category = "Other";
+
     @NotEmpty(message = "Splits cannot be empty")
     @Valid // Validates the nested objects inside the list
     private List<UserSplit> splits;

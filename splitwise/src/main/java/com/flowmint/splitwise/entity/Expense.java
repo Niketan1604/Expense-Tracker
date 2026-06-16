@@ -61,6 +61,12 @@ public class Expense {
     @Column(name = "flowmint_expense_id")
     private String flowmintExpenseId;
 
+    @Column(name = "is_transfer", nullable = false, columnDefinition = "boolean default false")
+    private Boolean isTransfer = false;
+
+    @Column(name = "category", nullable = false, columnDefinition = "varchar(255) default 'Other'")
+    private String category = "Other";
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
