@@ -1,7 +1,7 @@
 'use client'
 import { useState, Suspense, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { ChevronLeft, Plus, Receipt, ReceiptIndianRupee, Settings, LogOut, Trash2, Edit2, Minus, ArrowRightLeft, User, TrendingUp, PieChart as PieChartIcon, CheckCircle2, X } from 'lucide-react'
+import { ChevronLeft, Plus, Receipt, ReceiptIndianRupee, Settings, LogOut, Trash2, Edit2, Minus, ArrowRightLeft, TrendingUp, PieChart as PieChartIcon, CheckCircle2, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { useSplitwiseGroup, useSplitwiseExpenses, useProfile } from '@/hooks/useApi'
 import { splitwiseApi } from '@/lib/api'
@@ -836,7 +836,9 @@ function TransferModal({ currentUserId, groupId, members, prefilledDebt, onClose
   );
 }
 
-function MemberModal({ member, expenses, onClose, currentUserId }: { member: any, expenses: SplitwiseExpense[], onClose: () => void, currentUserId?: string }) {
+interface MemberModalMember { userId: string; name: string; email?: string }
+
+function MemberModal({ member, expenses, onClose }: { member: MemberModalMember, expenses: SplitwiseExpense[], onClose: () => void }) {
   const memberExpenses = expenses.filter(e => !e.isTransfer && e.shares.some(s => s.userId === member.userId));
   const totalSpent = memberExpenses.reduce((sum, e) => {
     const share = e.shares.find(s => s.userId === member.userId);
@@ -912,7 +914,7 @@ function GroupDetailsContent() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [prefilledDebt, setPrefilledDebt] = useState<{from: string, to: string, amount: number} | undefined>()
-  const [memberModal, setMemberModal] = useState<any | null>(null)
+  const [memberModal, setMemberModal] = useState<MemberModalMember | null>(null)
   
   const [tab, setTab] = useState<'OVERVIEW' | 'MEMBERS' | 'EXPENSES' | 'TRANSFERS' | 'SUMMARY'>('OVERVIEW')
   const [isLeaving, setIsLeaving] = useState(false)
@@ -992,7 +994,7 @@ function GroupDetailsContent() {
   const COLORS = ['#4ecdc4', '#ff6b6b', '#feca57', '#54a0ff', '#1dd1a1', '#ff9ff3', '#00d2d3', '#a29bfe', '#fd79a8', '#6c5ce7'];
 
   // Bar chart: daily spending
-  const dailySpending = [...expenses].reverse().reduce((acc: any[], exp) => {
+  const dailySpending = [...expenses].reverse().reduce((acc: { date: string; amount: number }[], exp) => {
     const date = exp.createdAt.split('T')[0];
     const existing = acc.find(a => a.date === date);
     if (existing) { existing.amount += exp.totalAmount; }
@@ -1293,7 +1295,7 @@ function GroupDetailsContent() {
         <TransferModal currentUserId={myPostgresId} groupId={groupId} members={group.members} prefilledDebt={prefilledDebt} onClose={() => { setTransferModalOpen(false); setPrefilledDebt(undefined); }} onSave={refreshData} />
       )}
       {memberModal && (
-        <MemberModal member={memberModal} expenses={allExpenses || []} onClose={() => setMemberModal(null)} currentUserId={myPostgresId} />
+        <MemberModal member={memberModal} expenses={allExpenses || []} onClose={() => setMemberModal(null)} />
       )}
       {confirmConfig && (
         <ConfirmModal isOpen={confirmConfig.isOpen} title={confirmConfig.title} message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={() => setConfirmConfig(null)} confirmText="Yes, Proceed" cancelText="Cancel" />

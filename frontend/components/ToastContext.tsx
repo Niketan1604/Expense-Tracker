@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 const DURATION = 10000; // 10 seconds
 
@@ -25,7 +25,6 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
   const [progress, setProgress] = useState(100);
-  const rafRef = useRef<number | null>(null);
 
   // Animate progress bar from 100 → 0 using a single CSS transition
   useEffect(() => {
